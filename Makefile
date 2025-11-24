@@ -23,7 +23,7 @@ help:
 	@echo "  serve-help         binary --help smoke check"
 	@echo "  emit-autoload      sample emit-autoload run"
 	@echo "  demo-all           run CLI demos (list/pin/history/sync, etc.)"
-	@echo "  book               build mdBook and open index"
+	@echo "  book               build mdBook then open in default browser"
 	@echo "  book-serve         live-reload mdBook on localhost:3000"
 	@echo "  clean              cargo clean"
 	@echo "  clean-demo         remove demo HOME sandbox"

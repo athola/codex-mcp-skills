@@ -1,6 +1,6 @@
-# Comparison to Nearby Projects
+# Comparison to Similar Projects
 
-The table below expands on how codex-mcp-skills differs from other public efforts to share or operate “skills” across agents—without naming projects directly.
+The table below expands on how codex-mcp-skills differs from other public efforts to share or operate “skills” across agents.
 
 | Project type | What it ships | Transport/runtime | Automation surface | Strengths | Gaps vs codex-mcp-skills |
 | --- | --- | --- | --- | --- | --- |
@@ -17,6 +17,6 @@ Where we can still improve:
 - Make Windows defaults and path detection even smoother.
 
 ## Key takeaways
-- Our differentiator is the MCP server that exposes skills uniformly to Codex and Claude while keeping stdio transport. Competing projects are either static skill packs, CI renderers, or local sync tools without an MCP layer.
+- Our differentiator is the MCP server that exposes skills uniformly to Codex and Claude while keeping stdio transport. Similar efforts to provide Skills within Codex are either static skill packs, CI renderers, or local sync tools without an MCP layer.
 - Release artifacts and installers are turnkey (`curl | sh` / `irm | iex`) with per-target binaries; others rely on manual copies or Cargo installs.
 - Autoload hook plus TUI provides end-user ergonomics; others focus on content, not runtime integration.

@@ -2407,6 +2407,7 @@ mod tests {
         let roots = skill_roots(&[])?;
         let order: Vec<_> = roots.into_iter().map(|r| r.source.label()).collect();
         assert_eq!(order, vec!["agent", "codex", "mirror", "claude"]);
+        std::env::remove_var("CODEX_SKILLS_MANIFEST");
         Ok(())
     }
 

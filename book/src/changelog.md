@@ -1,7 +1,5 @@
 # Changelog (highlights)
 
-# Changelog (highlights)
-
 ## 0.1.2
 - Added social/brand icon (8-bit 1280×640) at `assets/icon.png` and linked it in README.
 - Installer docs now use branch-agnostic `/HEAD/` URLs; README/book/FAQ updated.

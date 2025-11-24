@@ -142,7 +142,11 @@ Injects:
 - Workspace: `crates/core` (lib) + `crates/cli` (bin).
 - Format/tests: `cargo fmt && cargo test`.
 - Helpful scripts: `scripts/install-codex-skills.sh`, `scripts/install-codex-skills.sh --universal-only`.
-- Internal docs: [docs/process-guidelines.md](docs/process-guidelines.md), [docs/plans/2025-11-22-skill-autoload-mcp.md](docs/plans/2025-11-22-skill-autoload-mcp.md).
+- Internal docs: 
+  * [docs/process-guidelines.md](docs/process-guidelines.md)
+  * [docs/release-artifacts.md](docs/release-artifacts.md)
+  * [docs/CHANGELOG.md](docs/CHANGELOG.md)
+  * [docs/FAQ.md](docs/FAQ.md)
 
 ## Roadmap / future work
 - Awaiting rmcp resource-level `_meta` to expose `location/priority` directly in `listResources`.
@@ -152,4 +156,4 @@ Injects:
 MIT License © 2025 athola. See [LICENSE](LICENSE).
 
 ## Acknowledgements
-README structure inspired by high-signal Rust projects like Tokio, emphasizing overview → install → quick start → examples → support.
+README structure motivated by excellent Rust projects (e.g. [Tokio](https://github.com/tokio-rs/tokio/blob/master/README.md)), emphasizing overview → install → quick start → examples → support.

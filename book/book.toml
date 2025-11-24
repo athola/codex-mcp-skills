@@ -1,0 +1,16 @@
+[book]
+authors = ["Codex Team"]
+language = "en"
+multilingual = false
+src = "src"
+title = "codex-mcp-skills Book"
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/athola/codex-mcp-skills"
+fold.enable = true
+
+[output.html.playground]
+editable = false
+copy-js = true

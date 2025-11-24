@@ -1,0 +1,7 @@
+[advisories]
+ignore = [
+  # paste crate is unmaintained (RUSTSEC-2024-0436) but only used transitively by rmcp.
+  # rmcp currently has no released version without this dependency; track upstream for removal
+  # or replace with pastey when available. See RUSTSEC for details.
+  "RUSTSEC-2024-0436",
+]

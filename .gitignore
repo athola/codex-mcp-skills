@@ -3,3 +3,4 @@
 docs/plans/
 .cargo/
 book/book
+*.txt

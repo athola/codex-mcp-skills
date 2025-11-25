@@ -12,12 +12,18 @@ jobs:
   linux:
     name: Linux builds
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-unknown-linux-gnu
+          - aarch64-unknown-linux-gnu
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
           components: clippy
+      - uses: Swatinem/rust-cache@v2
       - uses: taiki-e/install-action@v2
         with:
           tool: cross
@@ -25,9 +31,8 @@ jobs:
         uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: codex-mcp-skills
-          target: |
-            x86_64-unknown-linux-gnu
-            aarch64-unknown-linux-gnu
+          target: ${{ matrix.target }}
+          build-tool: cross
           tar: unix
           zip: none
           checksum: sha256
@@ -37,18 +42,22 @@ jobs:
   macos:
     name: macOS builds
     runs-on: macos-14
+    strategy:
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin,x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
       - name: Upload macOS binaries
         uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: codex-mcp-skills
-          target: |
-            aarch64-apple-darwin
-            x86_64-apple-darwin
+          target: ${{ matrix.target }}
           tar: unix
           zip: none
           checksum: sha256
@@ -58,18 +67,22 @@ jobs:
   windows:
     name: Windows builds
     runs-on: windows-latest
+    strategy:
+      matrix:
+        target:
+          - x86_64-pc-windows-msvc
+          - aarch64-pc-windows-msvc
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+      - uses: Swatinem/rust-cache@v2
       - name: Upload Windows binaries
         uses: taiki-e/upload-rust-binary-action@v1
         with:
           bin: codex-mcp-skills
-          target: |
-            x86_64-pc-windows-msvc
-            aarch64-pc-windows-msvc
+          target: ${{ matrix.target }}
           tar: none
           zip: windows
           checksum: sha256

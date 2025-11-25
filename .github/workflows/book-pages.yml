@@ -15,7 +15,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      book: ${{ steps.set.outputs.book }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name != 'workflow_dispatch'
+        with:
+          fetch-depth: 0
+      - id: filter
+        if: github.event_name != 'workflow_dispatch'
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            book:
+              - 'book/**'
+              - '.github/workflows/book-pages.yml'
+      - id: set
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "book=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "book=${{ steps.filter.outputs.book }}" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    needs: changes
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.book == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,7 +61,8 @@ jobs:
           path: book/book
 
   deploy:
-    needs: build
+    needs: [changes, build]
+    if: github.event_name == 'workflow_dispatch' || needs.changes.outputs.book == 'true'
     runs-on: ubuntu-latest
     environment:
       name: github-pages

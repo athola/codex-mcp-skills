@@ -15,7 +15,34 @@ env:
   RUSTDOCFLAGS: "-D warnings"
 
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      rust: ${{ steps.filter.outputs.rust }}
+      book: ${{ steps.filter.outputs.book }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            rust:
+              - 'src/**'
+              - 'crates/**'
+              - 'Cargo.toml'
+              - 'Cargo.lock'
+              - 'scripts/**'
+              - 'build.rs'
+              - '.github/workflows/ci.yml'
+            book:
+              - 'book/**'
+              - '.github/workflows/ci.yml'
+
   lint-and-test:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -34,6 +61,8 @@ jobs:
         run: cargo test --workspace --all-features
 
   docs:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -43,6 +72,8 @@ jobs:
         run: cargo doc --workspace --all-features --no-deps
 
   mdbook:
+    needs: changes
+    if: needs.changes.outputs.book == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -53,6 +84,8 @@ jobs:
 
   release-build-check:
     name: Release build (dry run)
+    needs: changes
+    if: needs.changes.outputs.rust == 'true'
     strategy:
       fail-fast: false
       matrix:

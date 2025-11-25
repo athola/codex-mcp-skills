@@ -51,3 +51,52 @@ jobs:
       - name: Build book
         run: mdbook build book
 
+  release-build-check:
+    name: Release build (dry run)
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            toolchain_targets: x86_64-unknown-linux-gnu,aarch64-unknown-linux-gnu
+            build_tool: cross
+            target_list: |
+              x86_64-unknown-linux-gnu
+              aarch64-unknown-linux-gnu
+          - os: macos-14
+            toolchain_targets: x86_64-apple-darwin,aarch64-apple-darwin
+            build_tool: cargo
+            target_list: |
+              x86_64-apple-darwin
+              aarch64-apple-darwin
+          - os: windows-latest
+            toolchain_targets: x86_64-pc-windows-msvc,aarch64-pc-windows-msvc
+            build_tool: cargo
+            target_list: |
+              x86_64-pc-windows-msvc
+              aarch64-pc-windows-msvc
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.toolchain_targets }}
+      - uses: Swatinem/rust-cache@v2
+      - name: Install cross (Linux only)
+        if: matrix.build_tool == 'cross'
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
+      - name: Build release binaries (no upload)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmd="cargo"
+          if [ "${{ matrix.build_tool }}" = "cross" ]; then
+            cmd="cross"
+          fi
+          while IFS= read -r target; do
+            [ -z "$target" ] && continue
+            echo "Building target $target with $cmd"
+            $cmd build --release --bin codex-mcp-skills --target "$target"
+          done <<< "${{ matrix.target_list }}"

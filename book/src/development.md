@@ -55,3 +55,8 @@ cargo test --workspace --all-features
 ```
 
 This is also aliased to `make test` and is run as part of the continuous integration pipeline (`make ci`).
+
+### Coverage
+
+- Local: `cargo llvm-cov --workspace --html` for an HTML report, or `cargo llvm-cov --workspace --lcov --output-path lcov.info` for CI export.
+- CI: `.github/workflows/coverage.yml` runs the same command and uploads to Codecov.

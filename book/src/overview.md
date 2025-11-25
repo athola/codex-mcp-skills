@@ -2,6 +2,13 @@
 
 `codex-mcp-skills` acts as an MCP server, transforming local `SKILL.md` files into readily available resources and tools for AI agents. Its core functionality includes mirroring external skill repositories, dynamically filtering and pinning relevant skills based on each prompt, and providing comprehensive autoload context for platforms like Codex. The project also ensures that `AGENTS.md` remains synchronized with a machine-readable list of all accessible skills.
 
+Architecture (workspace crates):
+
+- `discovery`: walks skill roots, hashes `SKILL.md`, applies priority/duplicates logic.
+- `state`: persistence and configuration (pinned/auto-pin/history, manifest/env helpers).
+- `server`: CLI + MCP runtime wiring; depends on `discovery` and `state`.
+- `cli`: thin binary entrypoint.
+
 ## Key Capabilities
 
 `codex-mcp-skills` offers the following key capabilities:

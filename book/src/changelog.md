@@ -1,5 +1,10 @@
 # Changelog (highlights)
 
+## Unreleased
+- Modularized workspace into `discovery`, `state`, `server`, and `cli`.
+- Added coverage workflow (cargo-llvm-cov + Codecov) and badges.
+- Added smoke tests for discovery hashing and state persistence/auto-pin.
+
 ## 0.1.14
 - Added `doctor` diagnostics, `--trace-wire` logging, and schema hardening (`type = "object"`), plus installers that enforce `type = "stdio"` in Codex configs and support `--local` builds.
 

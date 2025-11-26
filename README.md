@@ -53,15 +53,15 @@ skrills pin context-optimization                # keep a skill always included
 ## How autoload works
 ```mermaid
 flowchart LR
-  A[User prompt / UserPromptSubmit hook] --> B[Skill index (cached discovery)]
+  A["User prompt / submit hook"] --> B["Skill index (cached discovery)"]
   B --> C{Filter}
-  C -->|keywords| D[Match set]
+  C -->|keywords| D["Match set"]
   C -->|pins / auto-pin| D
   C -->|trigram similarity (embed_threshold)| D
-  D --> E[Manifest builder (max_bytes, include_claude)]
-  E --> F[Diagnostics + manifest-first payload]
-  F --> G[Client injects additionalContext]
-  D -.-> H[[render-preview tool]] -.-> G
+  D --> E["Manifest builder (max_bytes, include_claude)"]
+  E --> F["Diagnostics + manifest-first payload"]
+  F --> G["Client injects additionalContext"]
+  D -.-> H["render-preview tool"] -.-> G
 ```
 
 ## Core features

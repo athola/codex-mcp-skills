@@ -55,9 +55,9 @@ skrills pin context-optimization                # keep a skill always included
 flowchart LR
   A["User prompt / submit hook"] --> B["Skill index (cached discovery)"]
   B --> C{Filter}
-  C -->|keywords| D["Match set"]
-  C -->|pins / auto-pin| D
-  C -->|trigram similarity\n(embed_threshold)| D
+  C -- "keywords" --> D["Match set"]
+  C -- "pins / auto-pin" --> D
+  C -- "trigram similarity (embed_threshold)" --> D
   D --> E["Manifest builder\nmax_bytes + include_claude"]
   E --> F["Diagnostics + manifest-first payload"]
   F --> G["Client injects additionalContext"]

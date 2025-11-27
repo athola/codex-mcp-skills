@@ -212,7 +212,8 @@ for pkg in meta["packages"]:
     if pkg["name"] == crate:
         print(pkg["version"])
         sys.exit(0)
-sys.exit("crate not found: " + crate)
+print("crate not found: " + crate, file=sys.stderr)
+sys.exit(1)
 PY
           }
 

@@ -12,15 +12,32 @@ Modern Rust MCP server + CLI for discovering, filtering, and injecting local `SK
 
 ## Install
 ```bash
+cargo install skrills
+```
+
+From source:
+```bash
 # from repo root
 cargo install --path crates/cli
 ```
 
-## Why this project
-- Maintain local control of skills while ensuring they are discoverable through a consistent MCP contract.
-- Optimize prompt usage by employing filtering based on prompt content and embeddings, along with byte limits. This helps prevent large, inefficient prompts.
-- Deliver manifest-first payloads and detailed diagnostics, enabling clients to integrate for reliable observability and clear governance.
-- Address the [current outstanding issue in the Codex GitHub](https://github.com/openai/codex/issues/5291)
+## Publishing
+- Releases are built from tags `v*` and binaries are attached to GitHub Releases.
+- Crates are published in order (`skrills-state`, `skrills-discovery`, `skrills-server`, `skrills`) after a release is published.
+- CI requires `CARGO_REGISTRY_TOKEN` in repo secrets for publishing; PRs run `cargo publish --dry-run` for all crates.
+
+## Error handling & panics
+- Library code returns `Result` for recoverable errors; panics are reserved for programmer bugs (e.g., unreachable states).
+- CLI surfaces errors with context; treat panics as bugs and report them.
+
+## Why This Project?
+
+This project was created to solve a few specific problems:
+
+- **Local Skill Management:** We wanted a way to manage `SKILL.md` files locally without losing the ability to discover and use them through a standardized MCP (Machine-checked Proof) contract.
+- **Efficient Prompting:** Large, unfiltered prompts are expensive and slow. This tool filters skills based on prompt content and embeddings to keep prompts small and relevant.
+- **Clear Diagnostics:** To understand why a skill was or wasn't included, the server provides detailed manifests and diagnostics. This makes integration and debugging more reliable for client tools.
+- **Codex Issue:** It also addresses a [long-standing issue in the Codex repository](https://github.com/openai/codex/issues/5291) related to skill management.
 
 ## At a glance
 - **Language:** Rust workspace (server/CLI, discovery, state crates)
@@ -84,7 +101,7 @@ flowchart LR
 - Manifest: `~/.codex/skills-manifest.json` for priority overrides, TTL, `expose_agents`, etc.
 - CLI flags: `--skill-dir`, `--max-bytes`, `--prompt`, `--embed-threshold`, `--auto-pin`, `--include-claude`, `--diagnose`.
 
-## Repository layout
+## Repository Structure
 - `crates/server` — MCP server + CLI.
 - `crates/discovery` — scanning, hashing, diagnostics.
 - `crates/state` — pins/history persistence, env + manifest parsing.
@@ -94,6 +111,7 @@ flowchart LR
 - `scripts/` — install and sync helpers.
 
 ## Documentation links
+- AI agent development: `AGENTS.md`
 - User/deep-dive: `book/src/` (CLI, autoload, development, FAQ, Public API & SemVer).
 - Runtime options & overrides: `docs/runtime-options.md`.
 - SemVer + public API expectations: `docs/semver-policy.md`.

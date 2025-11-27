@@ -1,0 +1,35 @@
+name: Publish Dry Run
+
+on:
+  pull_request:
+    paths:
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "crates/**/Cargo.toml"
+      - ".github/workflows/publish-dry-run.yml"
+      - ".github/workflows/release.yml"
+
+jobs:
+  publish-dry-run:
+    name: Dry-run cargo publish (dependency order)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Dry-run publish crates
+        run: |
+          set -euo pipefail
+
+          run_dry() {
+            crate="$1"
+            echo "::group::dry-run $crate"
+            cargo publish --dry-run -p "$crate"
+            echo "::endgroup::"
+          }
+
+          # Dependency order: state -> discovery -> server -> cli
+          run_dry skrills-state
+          run_dry skrills-discovery
+          run_dry skrills-server
+          run_dry skrills

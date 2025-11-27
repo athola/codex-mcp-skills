@@ -17,19 +17,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Dry-run publish crates
+      - name: Package crates (dry-run)
         run: |
           set -euo pipefail
 
-          run_dry() {
+          run_pkg() {
             crate="$1"
-            echo "::group::dry-run $crate"
-            cargo publish --dry-run -p "$crate"
+            echo "::group::package $crate"
+            cargo package -p "$crate"
             echo "::endgroup::"
           }
 
           # Dependency order: state -> discovery -> server -> cli
-          run_dry skrills-state
-          run_dry skrills-discovery
-          run_dry skrills-server
-          run_dry skrills
+          run_pkg skrills-state
+          run_pkg skrills-discovery
+          run_pkg skrills-server
+          run_pkg skrills

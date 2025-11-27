@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
-      - name: Package crates (dry-run)
+      - name: Package/build crates (dry-run)
         run: |
           set -euo pipefail
 
@@ -28,8 +28,14 @@ jobs:
             echo "::endgroup::"
           }
 
-          # Dependency order: state -> discovery -> server -> cli
+          # Package leaf crates; build dependents to avoid registry lookup.
           run_pkg skrills-state
           run_pkg skrills-discovery
-          run_pkg skrills-server
-          run_pkg skrills
+
+          echo "::group::check skrills-server"
+          cargo check -p skrills-server
+          echo "::endgroup::"
+
+          echo "::group::check skrills (cli)"
+          cargo check -p skrills
+          echo "::endgroup::"

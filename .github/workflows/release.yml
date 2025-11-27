@@ -205,15 +205,15 @@ jobs:
 
           crate_version() {
             python - <<'PY' "$1"
-import json, sys, subprocess
-crate = sys.argv[1]
-meta = json.loads(subprocess.check_output(["cargo", "metadata", "--no-deps", "--format-version", "1"]))
-for pkg in meta["packages"]:
-    if pkg["name"] == crate:
-        print(pkg["version"])
-        sys.exit(0)
-print("crate not found: " + crate, file=sys.stderr)
-sys.exit(1)
+              import json, sys, subprocess
+              crate = sys.argv[1]
+              meta = json.loads(subprocess.check_output(["cargo", "metadata", "--no-deps", "--format-version", "1"]))
+              for pkg in meta["packages"]:
+                  if pkg["name"] == crate:
+                      print(pkg["version"])
+                      sys.exit(0)
+              print("crate not found: " + crate, file=sys.stderr)
+              sys.exit(1)
 PY
           }
 

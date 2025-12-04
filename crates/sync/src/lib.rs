@@ -8,6 +8,7 @@ mod common;
 mod orchestrator;
 mod report;
 
-// Re-export stub types (will be populated in subsequent tasks)
 pub use adapters::{AgentAdapter, ClaudeAdapter, CodexAdapter, FieldSupport};
+pub use common::{Command, CommonConfig, McpServer, Preferences, SyncMeta};
+pub use orchestrator::{parse_direction, SyncDirection, SyncOrchestrator, SyncParams};
 pub use report::{SkipReason, SyncReport, WriteReport};

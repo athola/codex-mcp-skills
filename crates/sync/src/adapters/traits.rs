@@ -1,0 +1,59 @@
+//! Trait definition for agent adapters.
+
+use crate::common::{Command, CommonConfig, McpServer, Preferences};
+use crate::report::WriteReport;
+use anyhow::Result;
+use std::collections::HashMap;
+use std::path::PathBuf;
+
+/// Describes which fields an adapter supports for sync.
+#[derive(Debug, Clone, Default)]
+pub struct FieldSupport {
+    pub commands: bool,
+    pub mcp_servers: bool,
+    pub preferences: bool,
+    pub skills: bool,
+}
+
+/// Adapter for reading and writing configuration for a specific agent.
+pub trait AgentAdapter: Send + Sync {
+    /// Agent identifier (e.g., "claude", "codex")
+    fn name(&self) -> &str;
+
+    /// Root configuration directory (e.g., ~/.claude, ~/.codex)
+    fn config_root(&self) -> PathBuf;
+
+    /// What this adapter supports
+    fn supported_fields(&self) -> FieldSupport;
+
+    // --- Read operations ---
+
+    /// Read slash commands from native format
+    fn read_commands(&self) -> Result<Vec<Command>>;
+
+    /// Read MCP server configurations from native format
+    fn read_mcp_servers(&self) -> Result<HashMap<String, McpServer>>;
+
+    /// Read preferences from native format
+    fn read_preferences(&self) -> Result<Preferences>;
+
+    /// Read complete configuration
+    fn read_all(&self) -> Result<CommonConfig> {
+        Ok(CommonConfig {
+            commands: self.read_commands()?,
+            mcp_servers: self.read_mcp_servers()?,
+            preferences: self.read_preferences()?,
+        })
+    }
+
+    // --- Write operations ---
+
+    /// Write commands to native format
+    fn write_commands(&self, commands: &[Command]) -> Result<WriteReport>;
+
+    /// Write MCP servers to native format
+    fn write_mcp_servers(&self, servers: &HashMap<String, McpServer>) -> Result<WriteReport>;
+
+    /// Write preferences to native format
+    fn write_preferences(&self, prefs: &Preferences) -> Result<WriteReport>;
+}

@@ -38,6 +38,7 @@ flate2.workspace = true
 
 skrills-discovery = { path = "../discovery", version = "0.3.0" }
 skrills-state = { path = "../state", version = "0.3.0" }
+skrills_sync = { path = "../sync" }
 shellexpand = "3"
 
 [features]

@@ -1,17 +1,14 @@
-# Public API and SemVer policy
+# Public API and SemVer Policy
 
-The project is currently in its `0.x` series. It follows Rust RFC 1105’s guidance on API
-evolution while the interface is incubating:
+This project is in its `0.x` release series. During this incubation period, we follow the API evolution guidelines in [Rust RFC 1105](https://rust-lang.github.io/rfcs/1105-api-evolution.html).
 
-- **Best-effort compatibility**: The project aims to avoid breaking changes to the documented
-  surface. However, it reserves the right to make fixes or add fields. Breaking changes
-  will be called out explicitly in `docs/CHANGELOG.md`.
-- **Feature flags**: optional `watch` enables filesystem watching; keep this
-  feature gate in mind when embedding.
-- **Tooling guardrails**: CI runs public API checks to prevent accidental surface
-  changes. Contributors are encouraged to perform these checks locally (see `CONTRIBUTING.md`).
+## Policy
 
-Goal: reach 1.0 once the surface settles; until then, pin to an exact minor
-release if you depend on the library and review release notes for changes.
+-   **Compatibility**: While we try to maintain compatibility with the documented public API, the interface is still evolving. Consequently, fixes or additions that might be breaking changes may be introduced. All such modifications are recorded in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+-   **Feature Flags**: The `watch` feature, which enables filesystem watching, is optional. This feature gate should be considered when embedding the library into other projects to manage dependencies.
+-   **Tooling Guardrails**: Our Continuous Integration (CI) pipeline has checks to prevent accidental changes to the public API. You must run local checks before submitting pull requests; refer to [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed instructions.
 
-References: [RFC 1105 – API evolution](https://rust-lang.github.io/rfcs/1105-api-evolution.html).
+Our goal is to achieve a stable 1.0 release once the public API is stable. Until then, we recommend that you pin your dependencies to an exact `0.x.y` version and carefully review the release notes for each update for any potential changes.
+
+---
+**Reference**: For further details on API evolution, please consult [RFC 1105 – API evolution](https://rust-lang.github.io/rfcs/1105-api-evolution.html).

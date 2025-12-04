@@ -1,18 +1,10 @@
-# Public API and stability
+# Public API and SemVer Policy
 
-The project is currently in its `0.x` series. It follows the principles of Rust RFC 1105
-for API evolution during rapid iteration:
+This project is currently in its `0.x` release series. During this phase of rapid iteration, API evolution follows the principles in [Rust RFC 1105](https://rust-lang.github.io/rfcs/1105-api-evolution.html).
 
-- **Documented surface**: embedding entrypoint `run` and the `runtime` module
-  (used by the MCP tools `runtime-status` / `set-runtime-options`). Everything
-  else is internal and may change without notice.
-- **Best-effort compatibility**: The project aims to avoid breaking changes to the documented
-  surface. However, it may add fields or adjust behavior as it stabilizes. Any breaking
-  change will be documented in `docs/CHANGELOG.md`.
-- **Feature gates**: the `watch` feature adds filesystem watching; disable it if
-  you need a minimal build.
-- **Guardrails**: CI runs a public-API check to flag accidental surface changes;
-  contributors should run it locally (see `CONTRIBUTING.md`).
+-   **Documented Public API**: The officially documented public API surface primarily includes the `run` entrypoint and the `runtime` module (used by `runtime-status` and `set-runtime-options`). All other components are internal and may change without notice.
+-   **Best-Effort Compatibility**: While we try to avoid introducing breaking changes to the documented public API, the interface is still evolving. New fields may be added, or existing behaviors adjusted, as the API stabilizes. All such breaking changes, should they occur, will be documented in [`docs/CHANGELOG.md`](docs/CHANGELOG.md).
+-   **Feature Gates**: The `watch` feature, which provides filesystem watching, is optional. It can be disabled for minimal builds to reduce binary size.
+-   **Tooling Guardrails**: Our Continuous Integration (CI) pipeline includes a public-API check to detect accidental changes to the API surface. Contributors should run this check locally before submitting pull requests; refer to [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed instructions.
 
-Pin to an exact minor release until 1.0. Review the changelog for migration
-notes on releases that touch the documented surface.
+Until 1.0 is released, we strongly recommend pinning dependencies to an exact minor release. Always review the changelog for migration notes about releases that might affect the public API.

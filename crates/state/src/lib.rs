@@ -1,3 +1,10 @@
+//! Manages application state, configuration, and persistence.
+//!
+//! This crate provides utilities for:
+//! - Reading environment variables for configuration.
+//! - Managing persisted state such as pinned skills and history.
+//! - Handling manifest settings and runtime overrides.
+
 pub mod env;
 pub mod persistence;
 
@@ -8,11 +15,11 @@ pub use env::{
 };
 pub use persistence::{
     auto_pin_file, auto_pin_from_history, history_file, load_auto_pin_flag, load_history,
-    load_pinned, pinned_file, print_history, save_auto_pin_flag, save_history, save_pinned,
-    HistoryEntry,
+    load_pinned, load_pinned_with_defaults, pinned_file, print_history, save_auto_pin_flag,
+    save_history, save_pinned, HistoryEntry,
 };
 
+/// Placeholder function to be replaced in later tasks.
 pub fn placeholder() {
-    // stub to be replaced in later tasks
     todo!("state implementation pending")
 }

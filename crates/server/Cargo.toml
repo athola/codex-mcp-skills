@@ -1,6 +1,6 @@
 [package]
 name = "skrills-server"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "Core library for the skrills MCP server: discovery, filtering, manifest generation, and runtime control."
 license = "MIT"
@@ -31,15 +31,14 @@ dialoguer.workspace = true
 sha2.workspace = true
 base64.workspace = true
 tempfile.workspace = true
-hex.workspace = true
-notify = { version = "6", optional = true }
+notify = { version = "8", optional = true }
 toml.workspace = true
-once_cell.workspace = true
 semver.workspace = true
 flate2.workspace = true
 
-skrills-discovery = { path = "../discovery", version = "0.2.1" }
-skrills-state = { path = "../state", version = "0.2.1" }
+skrills-discovery = { path = "../discovery", version = "0.3.0" }
+skrills-state = { path = "../state", version = "0.3.0" }
+shellexpand = "3"
 
 [features]
 default = ["watch"]

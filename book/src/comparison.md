@@ -1,23 +1,21 @@
-# Comparison to Similar Projects
+# Project Comparison
 
-This table compares `skrills` with other approaches for managing and deploying skills across agents.
+This table compares `skrills` against alternative approaches for managing and deploying skills across various agents.
 
-| Project type | What it ships | Transport/runtime | Automation surface | Strengths | Gaps vs skrills |
-| --- | --- | --- | --- | --- | --- |
-| **skrills** | MCP server + CLI, hooks for Codex/Claude, skill sync utilities | MCP over stdio; one binary | Hooks, CLI, release artifacts per target | Unified MCP layer, cross-agent sync, autoload hook, TUI/CLI parity | — |
-| Static skill bundles | Ready-to-use skill files for manual placement | None (static skill files) | Manual copy into skill dir | Simple drop-in content | No MCP server; no Codex bridging; no installer |
-| CI doc/render pipelines | Build-time converters of SKILL-like docs to prompt text | Build-time only | CI (Actions/pipelines) | Automates documentation rendering | No runtime server, discovery, or sync; prompt-only |
-| Shared rules repositories | Curated rules/skills stored in a repo | N/A (static) | Manual consumption | Common baseline ruleset | No installer, no automation, no MCP bridge |
-| Local skill sync CLIs | CLI/TUI to sync/rank local skills and mirror directories | Local sync; no MCP | CLI/TUI | Good local curation & mirroring | No MCP server; no Codex hook; limited to file sync |
-| Tutorials/how-to guides | Guidance on authoring skills | N/A | Article/docs | Educational | No tooling; manual steps only |
+| Project Type | Key Components | Transport/Runtime | Automation Interface | Key Strengths | Distinguishing Gaps (vs. `skrills`) |
+|---|---|---|---|---|---|
+| **skrills** | MCP server, CLI, hooks for Codex/Claude, skill synchronization utilities | MCP over stdio; single binary | Hooks, CLI, release artifacts per target | Unified MCP layer, cross-agent synchronization, autoload hook integration, TUI/CLI feature parity | — |
+| Static skill bundles | Ready-to-use skill files | None (static) | Manual copy | Straightforward, drop-in content deployment. | Lacks an MCP server, Codex bridging capabilities, and an integrated installer. |
+| CI doc/render pipelines | Build-time converters. | Build-time only | Continuous Integration (e.g., GitHub Actions, custom pipelines). | Automates documentation rendering. | No runtime server, skill discovery, or synchronization features; limited to prompt-only operations. |
+| Shared rules repositories | Curated collections of rules and skills in a central repository. | Not applicable (static) | Manual consumption | Provides a common, baseline ruleset for broad application. | Lacks an installer, automation capabilities, or an MCP bridge. |
+| Local skill sync CLIs | Command-line interface (CLI) or Terminal User Interface (TUI) for synchronizing and ranking local skills. | Local synchronization only; no MCP | CLI/TUI | Allows effective local curation and mirroring of skills. | No MCP server, Codex hook integration, and limited to basic file synchronization. |
+| Tutorials/how-to guides | Instructional content for authoring skills. | Not applicable | Article/docs | Educational. | Lacks integrated tooling, relying solely on manual steps. |
 
-Where we can still improve:
-- Ship richer health diagnostics in the MCP server (latency, discovery stats).
-- Offer optional signed artifacts and stronger version pinning for synced skills.
-- Make Windows defaults and path detection even smoother.
+## Areas for Improvement
+-   Provide richer health diagnostics from the MCP server (latency, discovery stats).
+-   Add optional signed artifacts and stronger version pinning for synced skills.
+-   Improve default configurations and path detection on Windows.
 
 ## Summary
 
-The main difference between `skrills` and other similar projects is its focus on providing a runtime MCP server that can be used by both Codex and Claude. Other projects in this space tend to be either static collections of skills, CI tools for rendering documentation, or local synchronization tools that don't have an MCP layer.
-
-`skrills` also provides installers for pre-built binaries, which means you don't have to build it from source or manually copy files. The autoload hook and terminal user interface are designed to make it easy to integrate `skrills` into your workflow.
+`skrills`'s main advantage is its runtime MCP server, with its support for both Codex and Claude integrations. Unlike many alternative solutions that often provide static skill collections, CI-based documentation tools, or local synchronization utilities, `skrills` integrates a full MCP layer. Also, pre-built binaries and installers make setup easier.

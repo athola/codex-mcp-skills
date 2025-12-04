@@ -1,0 +1,12 @@
+default: true
+
+# Keep prose readable without forcing 80-col wrap.
+MD013:
+  line_length: 140
+  heading_line_length: 80
+  code_block_line_length: 200
+  tables: false
+
+# Allow inline HTML where needed for badges or layout.
+MD033:
+  allowed_elements: ["br", "img", "a"]

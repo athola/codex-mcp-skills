@@ -1,155 +1,276 @@
 # skrills
 ![Skrills icon](assets/icon.png)
-Modern Rust MCP server + CLI for discovering, filtering, and injecting local `SKILL.md` files with minimal token overhead.
+
+**Dynamic skill injection for the Model Context Protocol** — an efficient Rust MCP server and CLI that discovers, filters, and injects `SKILL.md` files into prompts with intelligent matching and minimal token overhead.
 
 [![CI](https://img.shields.io/github/actions/workflow/status/athola/skrills/ci.yml?branch=master)](https://github.com/athola/skrills/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/github/actions/workflow/status/athola/skrills/coverage.yml?branch=master&label=coverage)](https://github.com/athola/skrills/actions/workflows/coverage.yml)
 [![Codecov](https://codecov.io/gh/athola/skrills/branch/master/graph/badge.svg)](https://codecov.io/gh/athola/skrills)
 [![Security Audit](https://img.shields.io/github/actions/workflow/status/athola/skrills/audit.yml?branch=master&label=audit)](https://github.com/athola/skrills/actions/workflows/audit.yml)
-[![Docs](https://img.shields.io/github/actions/workflow/status/athola/skrills/book-pages.yml?branch=master&label=docs)](https://github.com/athola/skrills/actions/workflows/book-pages.yml)
+[![Crates.io](https://img.shields.io/crates/v/skrills.svg)](https://crates.io/crates/skrills)
+[![Docs](https://img.shields.io/github/actions/workflow/status/athola/skrills/book-pages.yml?branch=master&label=docs)](https://athola.github.io/skrills/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
-## Install
+## Why skrills?
+
+Traditional skill injection systems require manual configuration and often inject irrelevant context, wasting tokens and reducing prompt quality. `skrills` solves this by:
+
+- **Automatically discovering** skills across multiple directories (`~/.codex/skills/`, `~/.claude/skills/`, etc.)
+- **Intelligently matching** skills using trigram similarity and keyword analysis
+- **Minimizing token usage** through manifest-first rendering and configurable byte limits
+- **Providing transparency** with detailed diagnostics showing what was matched and why
+- **Integrating seamlessly** with Claude Code via hooks for zero-friction workflows
+
+**Platform Support**: Linux, macOS, Windows (via WSL or native builds)
+
+## Key Features
+
+-   **Intelligent Skill Filtering**: Matches skills using keywords, pins, and trigram similarity to ensure only the most relevant content is included in prompts.
+-   **Transparent Diagnostics**: Provides detailed insights into which skills were matched, skipped, or truncated, aiding in prompt optimization.
+-   **Claude Code Integration**: Seamlessly integrates with Claude Code via hooks for automatic skill injection on prompt submission.
+-   **Compact & Debuggable Output**: Employs manifest-first output to keep prompts concise and facilitate easy inspection.
+-   **Highly Configurable**: Allows extensive customization of skill filtering through environment variables and manifest overrides.
+-   **Modular Architecture**: Built as a Rust workspace, featuring specialized crates each addressing distinct concerns for improved maintainability.
+
+## Quick Start
+
+### Installation
+
+#### Prebuilt Binaries (Recommended)
+
+**macOS / Linux**
+```bash
+curl -LsSf https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.sh | sh
+```
+
+**Windows (PowerShell)**
+```powershell
+powershell -ExecutionPolicy Bypass -NoLogo -NoProfile -Command "Remove-Item alias:curl -ErrorAction SilentlyContinue; iwr https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.ps1 -UseBasicParsing | iex"
+```
+
+#### From crates.io
 ```bash
 cargo install skrills
 ```
 
-From source:
+#### Building from Source
 ```bash
-# from repo root
-cargo install --path crates/cli
+git clone https://github.com/athola/skrills.git
+cd skrills
+cargo install --path crates/cli --locked
 ```
 
-## Publishing
-- Releases are built from tags `v*` and binaries are attached to GitHub Releases.
-- Crates are published in order (`skrills-state`, `skrills-discovery`, `skrills-server`, `skrills`) after a release is published.
-- CI requires `CARGO_REGISTRY_TOKEN` in repo secrets for publishing; PRs run `cargo publish --dry-run` for all crates.
+### Basic Usage
 
-## Error handling & panics
-- Library code returns `Result` for recoverable errors. If an insurmountable bug is encountered, then panic (e.g., unreachable states).
-- CLI exposes errors with context. Panics should be treated as bugs and be reported.
-
-## How prompt submission is wired
-- Codex does not ship a built-in `UserPromptSubmit` hook. The installer adds a client-side hook file at `~/.codex/hooks/codex/prompt.on_user_prompt_submit`.
-- That hook invokes the local `skrills` MCP server on every prompt submission. `skrills` runs `render_autoload` to tokenize/embed the prompt, filter skills, apply pins/byte limits, and return a manifest-first payload plus diagnostics.
-- The client injects the MCP response into `additionalContext`, making matched `SKILL.md` content available for that prompt. If the hook is missing, skrills will not run—reinstall or create the hook manually pointing to `skrills serve`/autoload.
-
-## Why This Project?
-
-This project was created to solve a few specific problems:
-
-- **Local Skill Management:** We wanted a way to manage `SKILL.md` files locally without losing the ability to discover and use them through a standardized MCP (Machine-checked Proof) contract.
-- **Efficient Prompting:** Large, unfiltered prompts are expensive and slow. This tool filters skills based on prompt content and embeddings to keep prompts small and relevant.
-- **Clear Diagnostics:** To understand why a skill was or wasn't included, the server provides detailed manifests and diagnostics. This makes integration and debugging more reliable for client tools.
-- **Codex Issue:** It also addresses a [long-standing issue in the Codex repository](https://github.com/openai/codex/issues/5291) related to skill management.
-
-## At a glance
-- **Language:** Rust workspace (server/CLI, discovery, state crates)
-- **Primary use:** Autoload skills at `UserPromptSubmit` with manifest-first output, with an option for legacy concatenation.
-- **Clients:** Any MCP-capable tool (Codex CLI, Claude, custom agents).
-
-### Prebuilt scripts
 ```bash
-# macOS / Linux
-curl -LsSf https://raw.githubusercontent.com/${SKRILLS_GH_REPO:-athola/skrills}/HEAD/scripts/install.sh | sh
+# Start MCP server (stdio transport)
+skrills serve
 
-# Windows
-powershell -ExecutionPolicy Bypass -NoLogo -NoProfile -Command "Remove-Item alias:curl -ErrorAction SilentlyContinue; iwr https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.ps1 -UseBasicParsing | iex"
-```
-Flags: `--local` builds from checkout; env `SKRILLS_BIN_DIR`, `SKRILLS_TARGET`, `SKRILLS_VERSION`, `SKRILLS_GH_REPO` override defaults.
-Installers now also remove legacy `codex-mcp-skills` binaries and MCP entries to prevent duplicate server registrations.
+# Preview which skills match your prompt
+skrills render-preview --prompt "debugging rust async code"
 
-### Supported platforms
-- Linux, macOS, Windows (x86_64); other targets supported by cargo builds.
-- MCP transport: stdio (required by newer Codex MCP clients).
+# Test skill autoload response
+skrills emit-autoload --prompt "testing patterns"
 
-## Quickstart
-```bash
-skrills serve                                   # start MCP server
-skrills emit-autoload --prompt "rust tests"     # prompt-filtered manifest+content
-skrills render-preview --prompt "rust tests"    # see matched skills + token estimate (no content)
-skrills pin context-optimization                # keep a skill always included
+# Pin a skill for guaranteed inclusion
+skrills pin systematic-debugging
+
+# Check runtime configuration
+skrills runtime-status
 ```
 
-## How autoload works
+### Claude Code Integration
+
+The installer automatically configures Claude Code hooks. After installation, skills are injected when you submit prompts:
+
+```bash
+# Skills matching your prompt context are automatically injected
+# No manual configuration needed!
+```
+
+See [`docs/demo-claude-hooks.md`](docs/demo-claude-hooks.md) for detailed integration examples.
+
+## How It Works
+The following diagram illustrates the workflow of `skrills` from user prompt to client injection:
 ```mermaid
 flowchart LR
   A["User prompt / submit hook"] --> B["Skill index (cached discovery)"]
-  B --> C{Filter}
-  C -- "keywords" --> D["Match set"]
-  C -- "pins / auto-pin" --> D
-  C -- "trigram similarity (embed_threshold)" --> D
+  B --> C{Multi-layer Filtering}
+  C -- "keyword matching" --> D["Candidate skills"]
+  C -- "pinned skills" --> D
+  C -- "trigram similarity" --> D
   D --> E["Manifest builder\nmax_bytes + include_claude"]
-  E --> F["Diagnostics + manifest-first payload"]
-  F --> G["Client injects additionalContext"]
+  E --> F["Diagnostics + payload"]
+  F --> G["Client injection"]
   D -.-> H["render-preview tool"] -.-> G
 ```
 
-## Core features
-- **Prompt + embedding filtering:** 
-  * Converts prompt terms to tokens and applies a trigram-similarity algorithm (`--embed-threshold`, env `SKRILLS_EMBED_THRESHOLD`) to catch typos while preventing inclusion of non-relevant data
-- **Manifest-first payloads:** 
-  * `[skills] ...` summary with additional JSON manifest and full content
-  * Toggle the legacy concat capability with `SKRILLS_MANIFEST_FIRST=false`
-- **Diagnostics & observability:** 
-  * Provides access to included/skipped/truncated lists of skills
-  * Duplicate skills automatically resolved by priority
-  * `render-preview` reports matched skills, byte size, and token estimate before injection into the prompt
-- **Pinning:** 
-  * Manually pin the skill to additional prompts plus heuristic auto-pin from recent history
-- **Runtime overrides via MCP:** 
-  * `runtime-status`, `set-runtime-options`
-  * Persisted to `~/.codex/skills-runtime.json`.
-- **Claude mirror support:** 
-  * Optional sync from `~/.claude/skills` into `~/.codex/skills-mirror`.
+## Integration Options
 
-## MCP tools
-- `list-skills` — enumerate discovered skills with source and hash.
-- `autoload-snippet` — prompt-filtered manifest + content (adheres to existing pinned skills and token budgets).
-- `render-preview` — matched skill names, manifest bytes, estimated tokens, truncation flags (no content).
-- `runtime-status` / `set-runtime-options` — inspect/persist render overrides (`manifest_first`, `render_mode_log`, `manifest_minimal`).
-- `sync-from-claude`, `refresh-cache` — maintenance tasks to improve user experience.
+### Claude Code (Recommended)
+
+The installer automatically configures hooks at `~/.claude/hooks/prompt.on_user_prompt_submit` to analyze prompts and inject relevant skills via the MCP server cache.
+
+**How it works:**
+1. You submit a prompt in Claude Code
+2. The hook analyzes your prompt using trigram matching
+3. Relevant skills are fetched from the MCP server
+4. Skills are injected into your prompt automatically
+
+### Generic MCP Clients
+
+`skrills` implements the standard MCP protocol and works with any MCP-compatible client:
+
+```json
+{
+  "mcpServers": {
+    "skrills": {
+      "command": "skrills",
+      "args": ["serve"],
+      "env": {
+        "SKRILLS_MAX_BYTES": "8000"
+      }
+    }
+  }
+}
+```
+
+See the [MCP Token Optimization guide](book/src/mcp-token-optimization.md) for performance tuning.
 
 ## Configuration
-- Env: `SKRILLS_MAX_BYTES`, `SKRILLS_MANIFEST_FIRST`, `SKRILLS_EMBED_THRESHOLD`, `SKRILLS_RENDER_MODE_LOG`, `SKRILLS_INCLUDE_CLAUDE`, `SKRILLS_CACHE_TTL_MS`.
-- Manifest: `~/.codex/skills-manifest.json` for priority overrides, TTL, `expose_agents`, etc.
-- CLI flags: `--skill-dir`, `--max-bytes`, `--prompt`, `--embed-threshold`, `--auto-pin`, `--include-claude`, `--diagnose`.
 
-## Repository Structure
-- `crates/server` — MCP server + CLI.
-- `crates/discovery` — scanning, hashing, diagnostics.
-- `crates/state` — pins/history persistence, env + manifest parsing.
-- `crates/cli` — thin binary wrapper.
-- `book/` — mdBook user and contributor docs (build via `make book`).
-- `docs/` — changelog, runtime options, semver policy, process guidelines, plans.
-- `scripts/` — install and sync helpers.
+### Environment Variables
+-   `SKRILLS_MAX_BYTES`: Defines the maximum response size (default: 8000 bytes).
+-   `SKRILLS_EMBED_THRESHOLD`: Sets the similarity threshold for skill matching (default: 0.3).
+-   `SKRILLS_CACHE_TTL_MS`: Configures the cache duration in milliseconds.
+-   `SKRILLS_MANIFEST_FIRST`: Enables or disables manifest-first mode for skill loading.
 
-## Documentation links
-- AI agent development: `AGENTS.md`
-- User/deep-dive: `book/src/` (CLI, autoload, development, FAQ, Public API & SemVer).
-- Runtime options & overrides: `docs/runtime-options.md`.
-- SemVer + public API expectations: `docs/semver-policy.md`.
-- Release artifacts/process: `docs/release-artifacts.md`, `docs/process-guidelines.md`.
-- Changelog: `docs/CHANGELOG.md`.
+### Manifest Overrides
+To customize skill priorities and Time-To-Live (TTL) settings, create a `~/.codex/skills-manifest.json` file.
 
-## Status & roadmap
-- Current: pre-1.0, manifest-first default, render-preview for observability, public-API guardrails (`cargo-public-api`).
-- Near term: richer diagnostics (per-skill byte and token breakdown), Windows path defaults, optional HTTP transport.
-- Tracking: see `docs/CHANGELOG.md` and `docs/plans/` for dated plans.
+### CLI Flags
+```bash
+skrills --skill-dir /path/to/skills \
+         --embed-threshold 0.4 \
+         --max-bytes 12000 \
+         --diagnose
+```
+
+## Documentation
+
+### [Complete Project Book](https://athola.github.io/skrills/)
+
+Comprehensive documentation covering all aspects of `skrills`.
+
+### Quick Links
+
+**Getting Started**
+- [Installation Guide](book/src/installation.md)
+- [CLI Usage Reference](book/src/cli.md)
+- [Runtime Configuration](book/src/runtime-tuning.md)
+
+**Advanced Topics**
+- [MCP Token Optimization](book/src/mcp-token-optimization.md)
+- [Performance Tuning](book/src/performance.md)
+- [Security Considerations](book/src/security.md)
+- [Observability & Audit Logging](book/src/observability.md)
+
+**Development**
+- [Contributing Guidelines](CONTRIBUTING.md)
+- [Development Guide](book/src/development.md)
+- [Testing Strategy](book/src/testing.md)
+- [SemVer Policy](docs/semver-policy.md)
+
+**Reference**
+- [Frequently Asked Questions](docs/FAQ.md)
+- [Runtime Options](docs/runtime-options.md)
+- [Threat Model](docs/threat-model.md)
+- [Changelog](docs/CHANGELOG.md)
+
+## Architecture
+
+`skrills` is structured as a [Rust workspace](https://doc.rust-lang.org/book/ch14-03-cargo-workspaces.html), comprising the following specialized crates:
+
+-   **`server`**: Provides the core Machine-Readable Context Protocol (MCP) server implementation.
+-   **`discovery`**: Handles the scanning and indexing of skill files.
+-   **`state`**: Manages configuration settings and caching mechanisms.
+-   **`cli`**: Implements the command-line interface for `skrills`.
 
 ## Development
-```bash
-make fmt lint test --quiet
-```
-Public API guardrails: see `docs/semver-policy.md` and the mdBook “Public API & SemVer” page. CI also runs `cargo-public-api` for the server crate.
 
-## Contributing & support
-Issues and PRs welcome. Start with `skrills tui` to pin/sync locally, then follow `docs/process-guidelines.md`. For questions, file an issue with reproduction steps and `runtime-status` output.
+### Prerequisites
+- Rust 1.70+ (Minimum Supported Rust Version - MSRV).
+- `make` for executing various development commands.
+
+### Setup
+```bash
+# Clone the repository and build the project
+git clone https://github.com/athola/skrills.git
+cd skrills
+cargo build
+
+# Execute the standard development workflow checks
+make fmt lint test
+
+# Generate and open the documentation
+cargo doc --open
+```
+
+### Testing Strategy
+-   **Unit Tests**: Dedicated unit tests are provided for each individual crate.
+-   **Integration Tests**: Focus on ensuring compliance with the Machine-Readable Context Protocol (MCP).
+-   **Property-Based Testing**: Utilizes property-based testing for skill matching algorithms to ensure robustness.
+
+## Contributing
+
+Contributions are welcome! Whether you're fixing a bug, improving documentation, or proposing new features, we appreciate your help.
+
+**Before you start:**
+- Read the [Contributing Guidelines](CONTRIBUTING.md)
+- Check [existing issues](https://github.com/athola/skrills/issues) to avoid duplicates
+- Review the [Development Guide](book/src/development.md)
+
+**Bug Reports**
+
+Include:
+- Clear reproduction steps
+- Output of `skrills runtime-status`
+- Platform and environment details
+- Expected vs. actual behavior
+
+**Pull Requests**
+
+- Write tests for new functionality
+- Run `make fmt lint test` before submitting
+- Follow the [SemVer policy](docs/semver-policy.md)
+- Update documentation as needed
+
+See [`AGENTS.md`](AGENTS.md) for AI-assisted development workflows.
 
 ## License
-[MIT](./LICENSE)
 
-## Star History
+This project is distributed under the terms of the [MIT License](LICENSE).
 
-[![Star History Chart](https://api.star-history.com/svg?repos=athola/skrills&type=date&legend=top-left)](https://www.star-history.com/#athola/skrills&type=date&legend=top-left)
+## Related Projects
+
+**MCP Ecosystem**
+- [Model Context Protocol](https://github.com/modelcontextprotocol/servers) - Official MCP server implementations
+- [rmcp](https://github.com/modelcontextprotocol/rust-sdk) - Official Rust SDK for MCP
+
+**Complementary Tools**
+- [Claude Code](https://claude.com/claude-code) - AI-powered CLI for software development
+- Skills repositories implementing `SKILL.md` patterns
+
+## Acknowledgments
+
+Inspired by best-in-class Rust CLI tools:
+- [ripgrep](https://github.com/BurntSushi/ripgrep) - Exemplary CLI documentation structure
+- [bat](https://github.com/sharkdp/bat) - Installation and configuration patterns
+- [clap](https://github.com/clap-rs/clap) - Argument parsing design
+- [starship](https://github.com/starship/starship) - Feature presentation approach
+
+---
+
+**Need help?** Check the [FAQ](docs/FAQ.md) or [open an issue](https://github.com/athola/skrills/issues).

@@ -7,4 +7,4 @@ docs/plans/
 book/book
 *.txt
 .venv_image/
-mage-doc-review/
+writing-clearly-and-concisely/

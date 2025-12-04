@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Ensure we run from repo root
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+if ! command -v make >/dev/null 2>&1; then
+  echo "pre-commit hook: make not found; install build tools first." >&2
+  exit 1
+fi
+
+echo "pre-commit: running make precommit"
+make precommit

@@ -1,28 +1,28 @@
-# Development Process and Safety Guidelines
+# Development Process and Workflow Guidelines
 
-This document outlines the development processes and safety considerations for the project, aimed at ensuring a stable and predictable runtime environment.
+This document outlines development processes and safety considerations to maintain a stable and reliable runtime environment.
 
 ## Child Process Management
 
-Managing child processes correctly is essential to prevent system instability, such as resource leaks or unexpected termination.
+Effective child process management is critical to prevent system instability, like resource leaks or unexpected process termination.
 
--   On Unix-like systems, a `SIGCHLD` handler with `SA_NOCLDWAIT | SA_RESTART` is installed at startup to prevent "zombie" processes.
--   If you need to spawn child processes, ensure you either manage their exit status without `waitpid` or temporarily override and restore the `SIGCHLD` handler.
--   Non-Unix builds currently use a no-op stub for this handler. Before adding platform-specific child process spawning, implement equivalent safeguards for those platforms.
+-   On Unix-like systems, a `SIGCHLD` handler configured with `SA_NOCLDWAIT | SA_RESTART` is installed during startup. This prevents "zombie" processes.
+-   When spawning new child processes, you must manage their exit status without directly using `waitpid`, or temporarily override and restore the `SIGCHLD` handler.
+-   Non-Unix builds currently use a no-operation (no-op) stub. If platform-specific child process spawning capabilities are introduced, equivalent safeguards must be implemented.
 
 ## Workflow Best Practices
 
-Adhering to these practices ensures code quality and consistency:
+Follow these practices to maintain code quality and development standards:
 
--   **Centralize Shared Logic**: All shared functionality must be located in `crates/core`. The `crates/cli` must remain a thin wrapper.
--   **Changelog Updates**: Update the changelog for all user-visible changes, including new CLI flags, output format modifications, `AGENTS` synchronization behavior changes, and priority rule adjustments.
--   **Pre-Publishing Checks**: Before publishing or releasing any new version, always run `cargo fmt` and `cargo test` to confirm code formatting and test integrity.
+-   **Centralize Shared Logic**: All shared functionality and core logic must be in the [`crates/core`](crates/core) module. The [`crates/cli`](crates/cli) crate should be a thin wrapper, focusing on command-line interface concerns.
+-   **Changelog Updates**: Ensure the changelog is updated for all user-visible changes, including new CLI flags, changes to output formats, `AGENTS` sync behavior, and priority rule adjustments.
+-   **Pre-Publishing Checks**: Before publishing, run `cargo fmt` to ensure code formatting and `cargo test` to confirm test integrity.
 
 ## Development Checklist
 
-Before finalizing changes, consider the following:
+Before finalizing and merging changes, consider the following checklist:
 
--   Ensure no new zombie processes or unmanaged child processes are introduced.
--   Verify that a changelog entry exists for all user-facing modifications.
--   Confirm that all tests pass and code formatting adheres to standards.
--   Ensure all new CLI flags are documented in both the `README.md` and the project book.
+-   Verify that no new zombie or unmanaged child processes are introduced.
+-   Confirm a changelog entry exists for all user-facing changes.
+-   Ensure all tests pass and code formatting adheres to standards.
+-   Confirm all new CLI flags are documented in both [`README.md`](README.md) and the project book.

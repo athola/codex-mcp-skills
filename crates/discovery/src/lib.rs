@@ -1,3 +1,11 @@
+//! Core functionality for discovering skills and managing skill metadata.
+//!
+//! This crate provides mechanisms for:
+//! - Scanning directories for skill files.
+//! - Extracting metadata from skills.
+//! - Managing skill sources and priority.
+//! - Calculating prompt similarity using trigrams.
+
 pub mod scanner;
 pub mod types;
 

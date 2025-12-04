@@ -1,6 +1,6 @@
 [package]
 name = "skrills-state"
-version = "0.2.1"
+version = "0.3.0"
 edition = "2021"
 description = "State management for skrills runtime options, pins, and persisted overrides."
 license = "MIT"
@@ -18,7 +18,5 @@ path = "src/lib.rs"
 anyhow.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-toml.workspace = true
 tempfile.workspace = true
-tracing.workspace = true
 dirs.workspace = true

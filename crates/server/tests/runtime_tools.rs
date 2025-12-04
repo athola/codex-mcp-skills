@@ -14,7 +14,6 @@ async fn runtime_tools_round_trip_over_mcp() -> anyhow::Result<()> {
     std::env::set_var("HOME", tmp.path());
     std::fs::create_dir_all(tmp.path().join(".codex/skills"))?;
 
-    // Build path to the already-compiled CLI binary to avoid spawning a nested cargo build.
     let workspace_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .expect("crate dir")
@@ -42,7 +41,6 @@ async fn runtime_tools_round_trip_over_mcp() -> anyhow::Result<()> {
         .await?;
     assert!(status.success(), "cargo build failed to produce skrills");
 
-    // Start the real CLI server over stdio and talk to it via MCP client transport.
     let mut command = Command::new(&binary_path);
     command.arg("serve");
     command.env("HOME", tmp.path());
@@ -65,12 +63,10 @@ async fn runtime_tools_round_trip_over_mcp() -> anyhow::Result<()> {
     };
     let peer = client.peer().clone();
 
-    // Ensure the runtime tools are advertised to clients.
     let tools = peer.list_all_tools().await?;
     assert!(tools.iter().any(|t| t.name == "runtime-status"));
     assert!(tools.iter().any(|t| t.name == "set-runtime-options"));
 
-    // Update runtime options through the MCP tool.
     let args =
         json!({ "manifest_first": false, "render_mode_log": true, "manifest_minimal": true });
     let result = peer
@@ -104,7 +100,6 @@ async fn runtime_tools_round_trip_over_mcp() -> anyhow::Result<()> {
         Some(false)
     );
 
-    // Fetch status to verify persistence and shape of response.
     let status = peer
         .call_tool(CallToolRequestParam {
             name: "runtime-status".into(),
@@ -135,7 +130,6 @@ async fn runtime_tools_round_trip_over_mcp() -> anyhow::Result<()> {
     );
     assert!(status_obj.get("env").is_some());
 
-    // Cache should now reflect persisted override file.
     reset_runtime_cache_for_tests();
     let persisted = runtime_overrides_cached();
     assert!(!persisted.manifest_first());
@@ -144,7 +138,6 @@ async fn runtime_tools_round_trip_over_mcp() -> anyhow::Result<()> {
 
     client.cancel().await?;
 
-    // Drain stderr if present so the child can exit cleanly.
     if let Some(mut err) = stderr {
         let mut buf = String::new();
         let _ = err.read_to_string(&mut buf).await;

@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-/// Represents the origin of a skill, indicating where it was discovered.
+/// Represents the origin of a skill.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Hash, Deserialize)]
 pub enum SkillSource {
     Codex,
@@ -24,9 +24,10 @@ impl SkillSource {
     }
 
     /// Returns a human-friendly location tag for diagnostics.
-    /// - global: user-level shared skills (~/.codex, ~/.claude, mirror)
-    /// - universal: cross-agent shared skills (~/.agent)
-    /// - project: extra/user-specified directories
+    ///
+    /// - `global`: user-level shared skills (`~/.codex`, `~/.claude`, mirror).
+    /// - `universal`: cross-agent shared skills (`~/.agent`).
+    /// - `project`: extra/user-specified directories.
     pub fn location(&self) -> &'static str {
         match self {
             SkillSource::Codex | SkillSource::Claude | SkillSource::Mirror => "global",
@@ -36,7 +37,7 @@ impl SkillSource {
     }
 }
 
-/// Parses a string key into a SkillSource variant.
+/// Parses a string key into a `SkillSource` variant.
 pub fn parse_source_key(key: &str) -> Option<SkillSource> {
     match key.to_ascii_lowercase().as_str() {
         "codex" => Some(SkillSource::Codex),
@@ -56,7 +57,7 @@ pub struct SkillRoot {
 
 /// Metadata for a discovered skill.
 ///
-/// This includes its name, file path, source of discovery, root directory, and content hash.
+/// Includes its name, file path, source of discovery, root directory, and content hash.
 #[derive(Debug, Serialize, Clone)]
 pub struct SkillMeta {
     pub name: String,
@@ -66,7 +67,7 @@ pub struct SkillMeta {
     pub hash: String,
 }
 
-/// Information about a duplicate skill that was skipped.
+/// Information about a duplicate skill that was skipped due to priority.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct DuplicateInfo {
     pub name: String,
@@ -76,14 +77,19 @@ pub struct DuplicateInfo {
     pub kept_root: String,
 }
 
-/// Stores diagnostic information related to skill processing,
-/// including included, skipped, and found duplicate skills.
+/// Diagnostic information related to skill processing.
 #[derive(Default, Serialize, Deserialize, Debug)]
 pub struct Diagnostics {
-    pub included: Vec<(String, String, String, String)>, // name, source, root, location
-    pub skipped: Vec<(String, String)>,                  // name, reason
-    pub duplicates: Vec<DuplicateInfo>,                  // found duplicates
+    /// Skills included in the output (name, source, root, location).
+    pub included: Vec<(String, String, String, String)>,
+    /// Skills skipped with a reason.
+    pub skipped: Vec<(String, String)>,
+    /// Duplicate skills encountered and resolved by priority.
+    pub duplicates: Vec<DuplicateInfo>,
+    /// Indicates if the output was truncated.
     pub truncated: bool,
+    /// Indicates if skill content was omitted to fit manifest size.
     pub truncated_content: bool,
+    /// The render mode selected for the output.
     pub render_mode: Option<String>,
 }

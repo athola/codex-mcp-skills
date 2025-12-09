@@ -29,12 +29,11 @@ on:
         type: choice
         options:
           - all
-          - gateway-flow
-          - tls-validation
-          - metrics-collection
-          - error-recovery
+          - server
+          - subagents
+          - sync
 
-permissions:
+permissions: 
   contents: read
 
 env:
@@ -47,10 +46,9 @@ jobs:
   integration-test-filter:
     runs-on: ubuntu-latest
     outputs:
-      gateway-flow: ${{ steps.filter.outputs.gateway-flow }}
-      tls-validation: ${{ steps.filter.outputs.tls-validation }}
-      metrics-collection: ${{ steps.filter.outputs.metrics-collection }}
-      error-recovery: ${{ steps.filter.outputs.error-recovery }}
+      server: ${{ steps.filter.outputs.server }}
+      subagents: ${{ steps.filter.outputs.subagents }}
+      sync: ${{ steps.filter.outputs.sync }}
       all: ${{ steps.filter.outputs.all }}
     steps:
       - uses: actions/checkout@v4
@@ -58,31 +56,20 @@ jobs:
         uses: dorny/paths-filter@v3
         with:
           filters: |
-            gateway-flow:
-              - 'crates/gateway/src/**'
-              - 'crates/gateway/tests/gateway_flow_integration.rs'
-              - 'crates/gateway/tests/common/**'
-              - 'crates/server/src/**'
-              - 'crates/discovery/src/**'
-            tls-validation:
-              - 'crates/gateway/src/tls.rs'
-              - 'crates/gateway/tests/tls_validation_integration.rs'
-              - 'crates/gateway/tests/common/**'
-            metrics-collection:
-              - 'crates/gateway/src/metrics.rs'
-              - 'crates/gateway/tests/metrics_collection_integration.rs'
-              - 'crates/gateway/tests/common/**'
-            error-recovery:
-              - 'crates/gateway/tests/error_recovery_integration.rs'
-              - 'crates/gateway/tests/common/**'
+            server:
+              - 'crates/server/**'
+            subagents:
+              - 'crates/subagents/**'
+            sync:
+              - 'crates/sync/**'
             all:
-              - 'crates/gateway/**'
+              - 'crates/**'
               - '.github/workflows/integration-tests.yml'
 
   prepare-integration-test-environment:
     runs-on: ubuntu-latest
     needs: integration-test-filter
-    if: needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.gateway-flow == 'true' || needs.integration-test-filter.outputs.tls-validation == 'true' || needs.integration-test-filter.outputs.metrics-collection == 'true' || needs.integration-test-filter.outputs.error-recovery == 'true'
+    if: needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.server == 'true' || needs.integration-test-filter.outputs.subagents == 'true' || needs.integration-test-filter.outputs.sync == 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -126,15 +113,10 @@ jobs:
       - name: Build all workspace members
         run: cargo build --workspace --all-targets
 
-      - name: Build test binaries
-        run: |
-          cargo build -p skrills --bin skrills
-          cargo build --bins
-
-  gateway-flow-integration-tests:
+  server-integration-tests:
     runs-on: ubuntu-latest
     needs: [integration-test-filter, prepare-integration-test-environment]
-    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.gateway-flow == 'true' || github.event.inputs.test_type == 'gateway-flow' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
+    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.server == 'true' || github.event.inputs.test_type == 'server' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -165,81 +147,16 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Run gateway flow integration tests
+      - name: Run server integration tests
         run: |
-          echo "Running gateway flow integration tests..."
-          cargo test -p skrills-gateway --test gateway_flow_integration -- --nocapture
-          echo "Gateway flow integration tests completed!"
+          echo "Running server integration tests..."
+          cargo test -p skrills-server --test subagents_end_to_end --test runtime_tools -- --nocapture
+          echo "Server integration tests completed!"
 
-      - name: Upload gateway flow test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: gateway-flow-test-results
-          path: |
-            target/nextest/dev/
-            target/legacy-json-tests/
-          retention-days: 7
-
-  tls-validation-integration-tests:
+  subagents-integration-tests:
     runs-on: ubuntu-latest
     needs: [integration-test-filter, prepare-integration-test-environment]
-    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.tls-validation == 'true' || github.event.inputs.test_type == 'tls-validation' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
-    timeout-minutes: 45
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Cache cargo registry and index
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/registry/index
-            ~/.cargo/registry/cache
-            ~/.cargo/git/db
-          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-integration-
-            ${{ runner.os }}-cargo-
-
-      - name: Cache target directory
-        uses: actions/cache@v4
-        with:
-          path: target
-          key: ${{ runner.os }}-integration-test-target-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-integration-test-target-
-            ${{ runner.os }}-test-target-
-
-      - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: clippy, rustfmt
-
-      - name: Install OpenSSL development headers
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libssl-dev pkg-config
-
-      - name: Run TLS validation integration tests
-        run: |
-          echo "Running TLS validation integration tests..."
-          cargo test -p skrills-gateway --test tls_validation_integration -- --nocapture
-          echo "TLS validation integration tests completed!"
-
-      - name: Upload TLS test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: tls-validation-test-results
-          path: |
-            target/nextest/dev/
-            target/legacy-json-tests/
-          retention-days: 7
-
-  metrics-collection-integration-tests:
-    runs-on: ubuntu-latest
-    needs: [integration-test-filter, prepare-integration-test-environment]
-    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.metrics-collection == 'true' || github.event.inputs.test_type == 'metrics-collection' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
+    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.subagents == 'true' || github.event.inputs.test_type == 'subagents' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -270,27 +187,17 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Run metrics collection integration tests
+      - name: Run subagents integration tests
         run: |
-          echo "Running metrics collection integration tests..."
-          cargo test -p skrills-gateway --test metrics_collection_integration -- --nocapture
-          echo "Metrics collection integration tests completed!"
+          echo "Running subagents integration tests..."
+          cargo test -p skrills-subagents --test subagent_service_integration -- --nocapture
+          echo "Subagents integration tests completed!"
 
-      - name: Upload metrics test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: metrics-collection-test-results
-          path: |
-            target/nextest/dev/
-            target/legacy-json-tests/
-          retention-days: 7
-
-  error-recovery-integration-tests:
+  sync-integration-tests:
     runs-on: ubuntu-latest
     needs: [integration-test-filter, prepare-integration-test-environment]
-    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.error-recovery == 'true' || github.event.inputs.test_type == 'error-recovery' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
-    timeout-minutes: 60
+    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.sync == 'true' || github.event.inputs.test_type == 'sync' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -320,34 +227,17 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Run error recovery integration tests
+      - name: Run sync integration tests
         run: |
-          echo "Running error recovery integration tests..."
-          cargo test -p skrills-gateway --test error_recovery_integration -- --nocapture
-          echo "Error recovery integration tests completed!"
-
-      - name: Upload error recovery test results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: error-recovery-test-results
-          path: |
-            target/nextest/dev/
-            target/legacy-json-tests/
-          retention-days: 7
+          echo "Running sync integration tests..."
+          cargo test -p skrills_sync --test sync_integration -- --nocapture
+          echo "Sync integration tests completed!"
 
   integration-test-summary:
     runs-on: ubuntu-latest
-    needs: [gateway-flow-integration-tests, tls-validation-integration-tests, metrics-collection-integration-tests, error-recovery-integration-tests]
+    needs: [server-integration-tests, subagents-integration-tests, sync-integration-tests]
     if: always()
     steps:
-      - name: Download all test results
-        uses: actions/download-artifact@v4
-        if: always()
-        with:
-          path: test-results/
-          pattern: "*-test-results"
-
       - name: Create integration test summary
         if: always()
         run: |
@@ -356,95 +246,32 @@ jobs:
           echo "## Test Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
 
-          # Gateway Flow Tests
-          if [[ "${{ needs.gateway-flow-integration-tests.result }}" == "success" ]]; then
-            echo "[PASSED] Gateway Flow Tests: PASSED" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.gateway-flow-integration-tests.result }}" == "failure" ]]; then
-            echo "[FAILED] Gateway Flow Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          # Server Tests
+          if [[ "${{ needs.server-integration-tests.result }}" == "success" ]]; then
+            echo "[PASSED] Server Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.server-integration-tests.result }}" == "failure" ]]; then
+            echo "[FAILED] Server Tests: FAILED" >> $GITHUB_STEP_SUMMARY
           else
-            echo "[SKIPPED] Gateway Flow Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+            echo "[SKIPPED] Server Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # TLS Validation Tests
-          if [[ "${{ needs.tls-validation-integration-tests.result }}" == "success" ]]; then
-            echo "[PASSED] TLS Validation Tests: PASSED" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.tls-validation-integration-tests.result }}" == "failure" ]]; then
-            echo "[FAILED] TLS Validation Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          # Subagents Tests
+          if [[ "${{ needs.subagents-integration-tests.result }}" == "success" ]]; then
+            echo "[PASSED] Subagents Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.subagents-integration-tests.result }}" == "failure" ]]; then
+            echo "[FAILED] Subagents Tests: FAILED" >> $GITHUB_STEP_SUMMARY
           else
-            echo "[SKIPPED] TLS Validation Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+            echo "[SKIPPED] Subagents Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
           fi
 
-          # Metrics Collection Tests
-          if [[ "${{ needs.metrics-collection-integration-tests.result }}" == "success" ]]; then
-            echo "[PASSED] Metrics Collection Tests: PASSED" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.metrics-collection-integration-tests.result }}" == "failure" ]]; then
-            echo "[FAILED] Metrics Collection Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          # Sync Tests
+          if [[ "${{ needs.sync-integration-tests.result }}" == "success" ]]; then
+            echo "[PASSED] Sync Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.sync-integration-tests.result }}" == "failure" ]]; then
+            echo "[FAILED] Sync Tests: FAILED" >> $GITHUB_STEP_SUMMARY
           else
-            echo "[SKIPPED] Metrics Collection Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+            echo "[SKIPPED] Sync Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
           fi
-
-          # Error Recovery Tests
-          if [[ "${{ needs.error-recovery-integration-tests.result }}" == "success" ]]; then
-            echo "[PASSED] Error Recovery Tests: PASSED" >> $GITHUB_STEP_SUMMARY
-          elif [[ "${{ needs.error-recovery-integration-tests.result }}" == "failure" ]]; then
-            echo "[FAILED] Error Recovery Tests: FAILED" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "[SKIPPED] Error Recovery Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "## Coverage Areas Tested" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "- Full autoload → gateway → Codex flow" >> $GITHUB_STEP_SUMMARY
-          echo "- TLS certificate validation" >> $GITHUB_STEP_SUMMARY
-          echo "- Metrics collection and monitoring" >> $GITHUB_STEP_SUMMARY
-          echo "- Error recovery scenarios" >> $GITHUB_STEP_SUMMARY
-          echo "- Concurrency and performance" >> $GITHUB_STEP_SUMMARY
-          echo "- Network partition handling" >> $GITHUB_STEP_SUMMARY
-          echo "- Memory pressure recovery" >> $GITHUB_STEP_SUMMARY
-
-  integration-test-report:
-    runs-on: ubuntu-latest
-    needs: [integration-test-filter]
-    if: failure() && (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.gateway-flow == 'true' || needs.integration-test-filter.outputs.tls-validation == 'true' || needs.integration-test-filter.outputs.metrics-collection == 'true' || needs.integration-test-filter.outputs.error-recovery == 'true')
-    steps:
-      - name: Comment on PR with integration test results
-        if: github.event_name == 'pull_request'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const issueNumber = context.issue.number;
-            const owner = context.repo.owner;
-            const repo = context.repo.repo;
-
-            github.rest.issues.createComment({
-              owner,
-              repo,
-              issue_number: issueNumber,
-              body: `## Integration Tests Failed
-
-              The integration tests have failed. Please review the logs and fix any issues before merging.
-
-              ### Areas Tested
-              - Full autoload -> gateway -> Codex flow
-              - TLS certificate validation
-              - Metrics collection and monitoring
-              - Error recovery scenarios
-
-              ### Next Steps
-              1. Check the **Actions** tab for detailed failure logs
-              2. Review integration test coverage
-              3. Fix any failing tests
-              4. Ensure new functionality has proper test coverage
-
-              ### Test Files
-              - \`crates/gateway/tests/gateway_flow_integration.rs\`
-              - \`crates/gateway/tests/tls_validation_integration.rs\`
-              - \`crates/gateway/tests/metrics_collection_integration.rs\`
-              - \`crates/gateway/tests/error_recovery_integration.rs\`
-
-              **Remember**: Integration tests validate the complete end-to-end functionality of the skrills middleware server.`
-            });
 
   integration-test-coverage:
     runs-on: ubuntu-latest
@@ -459,12 +286,14 @@ jobs:
       - name: Generate integration test coverage
         run: |
           # Run integration tests with coverage
-          cargo llvm-cov --lib --bin skrills --workspace --lcov --test-features --tests -- \
-            -p skrills-gateway \
-            gateway_flow_integration \
-            tls_validation_integration \
-            metrics_collection_integration \
-            error_recovery_integration \
+          cargo llvm-cov --lib --workspace --lcov --tests -- \
+            -p skrills-server \
+            -p skrills-subagents \
+            -p skrills_sync \
+            subagents_end_to_end \
+            runtime_tools \
+            subagent_service_integration \
+            sync_integration \
             -- --nocapture
 
       - name: Upload coverage to Codecov

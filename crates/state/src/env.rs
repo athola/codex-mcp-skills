@@ -15,6 +15,10 @@ pub fn extra_dirs_from_env() -> Vec<PathBuf> {
 
 /// Returns the user's home directory.
 pub fn home_dir() -> Result<PathBuf> {
+    #[cfg(unix)]
+    if let Ok(home) = std::env::var("HOME") {
+        return Ok(PathBuf::from(home));
+    }
     dirs::home_dir().ok_or_else(|| anyhow::anyhow!("home directory not found"))
 }
 

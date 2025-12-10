@@ -304,19 +304,42 @@ impl SkillCache {
         }
         let data = fs::read_to_string(&path)?;
         let snap: SkillCacheSnapshot = serde_json::from_str(&data)?;
-        if snap.roots != self.roots_fingerprint() {
+
+        let current_roots = self.roots_fingerprint();
+        if snap.roots != current_roots {
+            tracing::warn!(
+                target: "skrills::startup",
+                "snapshot roots mismatch: expected {:?}, got {:?}",
+                current_roots,
+                snap.roots
+            );
             return Ok(());
         }
+
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .unwrap_or_default()
             .as_secs();
-        if now_secs.saturating_sub(snap.last_scan) as u128 > self.ttl.as_secs() as u128 {
+
+        let age = now_secs.saturating_sub(snap.last_scan);
+        if age as u128 > self.ttl.as_secs() as u128 {
+            tracing::warn!(
+                target: "skrills::startup",
+                "snapshot stale: age {}s > ttl {}s",
+                age,
+                self.ttl.as_secs()
+            );
             return Ok(());
         }
 
         let mut uri_index = HashMap::new();
         for (idx, s) in snap.skills.iter().enumerate() {
+            // New canonical URI with server "skrills" and source in path.
+            uri_index.insert(
+                format!("skill://skrills/{}/{}", s.source.label(), s.name),
+                idx,
+            );
+            // Backward-compatible legacy URI (no server component).
             uri_index.insert(format!("skill://{}/{}", s.source.label(), s.name), idx);
         }
         self.skills = snap.skills;
@@ -3675,10 +3698,14 @@ mod tests {
 
     #[test]
     fn skill_cache_loads_snapshot_without_rescan() -> Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
         let _guard = env_guard();
         let tmp = tempdir()?;
+        let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", tmp.path());
         std::env::set_var("SKRILLS_INCLUDE_CLAUDE", "0");
+        // Ensure no manifest overrides affect roots order
+        std::env::remove_var("SKRILLS_MANIFEST");
 
         let roots = skill_roots(&[])?;
         let roots_fingerprint: Vec<String> = roots
@@ -3706,7 +3733,7 @@ mod tests {
         });
         fs::write(&snapshot_path, serde_json::to_string(&snapshot)?)?;
 
-        let svc = SkillService::new_with_ttl(vec![], cache_ttl(&load_manifest_settings))?;
+        let svc = SkillService::new_with_ttl(vec![], Duration::from_secs(3600))?;
         let resources = svc.list_resources_payload()?;
         assert!(
             resources
@@ -3716,6 +3743,11 @@ mod tests {
         );
 
         std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        } else {
+            std::env::remove_var("HOME");
+        }
         Ok(())
     }
 

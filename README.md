@@ -38,20 +38,28 @@ Local MCP server that mirrors and auto-discovers skills, agents, commands, and p
 - From source: `cargo install --path crates/cli --force`
 
 ## Quickstart
+### Start MCP server over stdio
 ```bash
-# Start MCP server over stdio
 skrills serve
+```
 
-# Mirror Claude assets into Codex (respects SKRILLS_MIRROR_SOURCE)
+### Mirror Claude assets into Codex (respects SKRILLS_MIRROR_SOURCE)
+```bash
 skrills sync-all --skip-existing-commands
+```
 
-# Preview autoload for a prompt
+### Preview autoload for a prompt
+```bash
 skrills render-preview --prompt "List debugging skills for MCP servers"
+```
 
-# Launch a mirrored agent spec
+### Launch a mirrored agent spec
+```bash
 skrills agent codex-dev
+```
 
-# Run subagents (requires --features subagents)
+### Run subagents (requires --features subagents)
+```bash
 skrills serve --features subagents
 # Then from MCP client: list_subagents, run_subagent, get_run_status
 ```
@@ -66,10 +74,10 @@ flowchart LR
       CL[Claude Code]
     end
     S[skrills MCP server]
-    D[discover_skills<br/>cache snapshot + TTL]
-    F[filter pins/history/preload<br/>+ prompt similarity]
-    R[render bundle<br/>(manifest+content or manifest-only/gzip)]
-    P[Append bundle to model prompt]
+    D["discover_skills<br/>cache snapshot + TTL"]
+    F["filter pins/history/preload<br/>+ prompt similarity"]
+    R["render bundle<br/>(manifest+content or manifest-only/gzip)"]
+    P["Append bundle to model prompt"]
 
     U --> CX
     U --> CL

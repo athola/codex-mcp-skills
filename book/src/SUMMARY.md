@@ -4,6 +4,7 @@
 - [Installation Guide](installation.md)
 - [CLI Usage Reference](cli.md)
 - [Autoloading Skills and Context](autoload.md)
+- [How skills reach your prompt](prompt-loading.md)
 - [Runtime Configuration and Tuning](runtime-tuning.md)
 - [MCP Token Optimization Strategies](mcp-token-optimization.md)
 - [State Management and Persistence](persistence.md)

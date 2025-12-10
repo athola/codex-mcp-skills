@@ -379,6 +379,9 @@ impl SkillCache {
     /// Invalidate the cache, forcing a rescan on the next access.
     fn invalidate(&mut self) {
         self.last_scan = None;
+        self.skills.clear();
+        self.duplicates.clear();
+        self.uri_index.clear();
     }
 
     /// Refresh the cache if the TTL has expired or the cache is empty.
@@ -390,6 +393,29 @@ impl SkillCache {
             .unwrap_or(false);
         if fresh {
             return Ok(());
+        }
+
+        type SnapshotBackup =
+            (Vec<SkillMeta>, Vec<DuplicateInfo>, HashMap<String, usize>, Option<Instant>);
+        // If we've been invalidated (or never loaded) attempt a cheap snapshot reload,
+        // but keep scanning; if the scan finds nothing, fall back to the snapshot so
+        // snapshot-only skills remain available.
+        let mut snapshot_backup: Option<SnapshotBackup> = None;
+        if self.last_scan.is_none() && self.skills.is_empty() {
+            if let Err(e) = self.try_load_snapshot() {
+                tracing::debug!(
+                    target: "skrills::startup",
+                    error = %e,
+                    "failed to reload discovery snapshot after invalidation"
+                );
+            } else if !self.skills.is_empty() {
+                snapshot_backup = Some((
+                    self.skills.clone(),
+                    self.duplicates.clone(),
+                    self.uri_index.clone(),
+                    self.last_scan,
+                ));
+            }
         }
 
         let scan_started = Instant::now();
@@ -409,6 +435,15 @@ impl SkillCache {
         self.duplicates = dup_log;
         self.uri_index = uri_index;
         self.last_scan = Some(now);
+        if self.skills.is_empty() {
+            if let Some((skills, dups, index, last)) = snapshot_backup {
+                self.skills = skills;
+                self.duplicates = dups;
+                self.uri_index = index;
+                self.last_scan = last;
+                return Ok(());
+            }
+        }
         self.persist_snapshot();
         let elapsed_ms = scan_started.elapsed().as_millis();
         if elapsed_ms > 250 {
@@ -3719,15 +3754,30 @@ mod tests {
 
         let roots = skill_roots(&[])?;
         let order: Vec<_> = roots.into_iter().map(|r| r.source.label()).collect();
-        let mut expected = vec!["agent", "codex", "mirror"];
+        let expected_prefix = ["agent", "codex", "mirror"];
+        assert!(
+            order
+                .iter()
+                .take(expected_prefix.len())
+                .map(String::as_str)
+                .eq(expected_prefix),
+            "manifest override should place agent/codex/mirror first; got {:?}",
+            order
+        );
+        // Remaining entries (if any) come from the default priority order filtered by env flags.
+        let mut expected_tail: Vec<&str> = Vec::new();
         if env_include_claude() {
-            expected.push("claude");
+            expected_tail.push("claude");
             if env_include_marketplace() {
-                expected.push("marketplace");
-                expected.push("cache");
+                expected_tail.push("marketplace");
+                expected_tail.push("cache");
             }
         }
-        assert_eq!(order, expected);
+        assert_eq!(
+            &order[expected_prefix.len()..],
+            expected_tail,
+            "unexpected extra sources after manifest prefix"
+        );
         std::env::remove_var("SKRILLS_MANIFEST");
         std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");
         std::env::remove_var("SKRILLS_INCLUDE_MARKETPLACE");
@@ -3821,6 +3871,63 @@ mod tests {
                 .iter()
                 .any(|r| r.uri == "skill://skrills/codex/alpha/SKILL.md"),
             "snapshot-loaded skill should appear even if file is missing"
+        );
+
+        std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");
+        if let Some(home) = original_home {
+            std::env::set_var("HOME", home);
+        } else {
+            std::env::remove_var("HOME");
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn skill_cache_prefers_snapshot_after_invalidation() -> Result<()> {
+        let _ = tracing_subscriber::fmt::try_init();
+        let _guard = env_guard();
+        let tmp = tempdir()?;
+        let original_home = std::env::var("HOME").ok();
+        std::env::set_var("HOME", tmp.path());
+        let snapshot_path = tmp.path().join(".codex/skills-cache.json");
+        std::env::set_var("SKRILLS_CACHE_PATH", &snapshot_path);
+        std::env::set_var("SKRILLS_INCLUDE_CLAUDE", "0");
+
+        let roots = skill_roots(&[])?;
+        let roots_fingerprint: Vec<String> = roots
+            .iter()
+            .map(|r| r.root.to_string_lossy().into_owned())
+            .collect();
+
+        fs::create_dir_all(snapshot_path.parent().unwrap())?;
+        let now_secs = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let snapshot = serde_json::json!({
+            "roots": roots_fingerprint,
+            "last_scan": now_secs,
+            "skills": [{
+                "name": "alpha/SKILL.md",
+                "path": "/nonexistent/alpha/SKILL.md",
+                "source": "Codex",
+                "root": roots_fingerprint[0],
+                "hash": "deadbeef"
+            }],
+            "duplicates": []
+        });
+        fs::write(&snapshot_path, serde_json::to_string(&snapshot)?)?;
+
+        let svc = SkillService::new_with_roots_for_test(roots, Duration::from_secs(3600))?;
+        // Simulate watcher-triggered cache invalidation.
+        svc.invalidate_cache()?;
+
+        let resources = svc.list_resources_payload()?;
+        assert!(
+            resources
+                .iter()
+                .any(|r| r.uri == "skill://skrills/codex/alpha/SKILL.md"),
+            "snapshot should be reloaded after invalidation instead of rescanning missing files"
         );
 
         std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");

@@ -33,7 +33,7 @@ pub trait AgentAdapter: Send + Sync {
     // --- Read operations ---
 
     /// Read slash commands from native format
-    fn read_commands(&self) -> Result<Vec<Command>>;
+    fn read_commands(&self, include_marketplace: bool) -> Result<Vec<Command>>;
 
     /// Read MCP server configurations from native format
     fn read_mcp_servers(&self) -> Result<HashMap<String, McpServer>>;
@@ -47,7 +47,7 @@ pub trait AgentAdapter: Send + Sync {
     /// Read complete configuration
     fn read_all(&self) -> Result<CommonConfig> {
         Ok(CommonConfig {
-            commands: self.read_commands()?,
+            commands: self.read_commands(false)?,
             mcp_servers: self.read_mcp_servers()?,
             preferences: self.read_preferences()?,
             skills: self.read_skills()?,

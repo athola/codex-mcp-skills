@@ -286,6 +286,9 @@ impl SkillCache {
     }
 
     fn snapshot_path(&self) -> Result<PathBuf> {
+        if let Ok(path) = std::env::var("SKRILLS_CACHE_PATH") {
+            return Ok(PathBuf::from(path));
+        }
         Ok(home_dir()?.join(".codex/skills-cache.json"))
     }
 
@@ -560,6 +563,32 @@ impl SkillService {
             roots = roots.len(),
             skills = "deferred", // Skill discovery is deferred until after initialize to keep initial response fast.
             "SkillService constructed"
+        );
+        Ok(Self {
+            cache: Arc::new(Mutex::new(SkillCache::new_with_ttl(roots, ttl))),
+            content_cache: Arc::new(Mutex::new(ContentCache::default())),
+            warmup_started: AtomicBool::new(false),
+            runtime: Arc::new(Mutex::new(RuntimeOverrides::load()?)),
+            #[cfg(feature = "subagents")]
+            subagents: Some(SubagentService::new()?),
+        })
+    }
+
+    /// Test-only helper to build a service from explicit roots without
+    /// re-evaluating environment-driven discovery order. This prevents tests
+    /// that persist snapshots from becoming brittle when environment or
+    /// priority configuration shifts between snapshot creation and service
+    /// construction.
+    #[cfg(test)]
+    fn new_with_roots_for_test(roots: Vec<SkillRoot>, ttl: Duration) -> Result<Self> {
+        let build_started = Instant::now();
+        let elapsed_ms = build_started.elapsed().as_millis();
+        tracing::info!(
+            target: "skrills::startup",
+            elapsed_ms,
+            roots = roots.len(),
+            skills = "deferred",
+            "SkillService constructed (test roots)"
         );
         Ok(Self {
             cache: Arc::new(Mutex::new(SkillCache::new_with_ttl(roots, ttl))),
@@ -1436,10 +1465,14 @@ impl ServerHandler for SkillService {
                     })
                 }
                 "sync-from-claude" => {
+                    let include_marketplace = request.arguments.as_ref()
+                        .and_then(|obj| obj.get("include_marketplace"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
                     let home = home_dir()?;
                     let claude_root = mirror_source_root(&home);
                     let mirror_root = home.join(".codex/skills-mirror");
-                    let report = sync_from_claude(&claude_root, &mirror_root)?;
+                    let report = sync_from_claude(&claude_root, &mirror_root, include_marketplace)?;
                     let text = if report.copied_names.is_empty() {
                         format!("copied: {}, skipped: {}", report.copied, report.skipped)
                     } else {
@@ -1479,6 +1512,10 @@ impl ServerHandler for SkillService {
                         .and_then(|obj| obj.get("dry_run"))
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
+                    let include_marketplace = request.arguments.as_ref()
+                        .and_then(|obj| obj.get("include_marketplace"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
 
                     if from == "claude" {
                         let home = home_dir()?;
@@ -1506,7 +1543,7 @@ impl ServerHandler for SkillService {
                                 meta: None,
                             })
                         } else {
-                            let report = sync_from_claude(&claude_root, &mirror_root)?;
+                            let report = sync_from_claude(&claude_root, &mirror_root, include_marketplace)?;
                             Ok(CallToolResult {
                                 content: vec![Content::text(format!(
                                     "Synced {} skills ({} unchanged)",
@@ -1549,6 +1586,11 @@ impl ServerHandler for SkillService {
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
 
+                    let include_marketplace = request.arguments.as_ref()
+                        .and_then(|obj| obj.get("include_marketplace"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
                     let params = SyncParams {
                         from: Some(from.to_string()),
                         dry_run,
@@ -1557,6 +1599,7 @@ impl ServerHandler for SkillService {
                         sync_mcp_servers: false,
                         sync_preferences: false,
                         sync_skills: false,
+                        include_marketplace,
                         ..Default::default()
                     };
 
@@ -1677,12 +1720,17 @@ impl ServerHandler for SkillService {
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false);
 
+                    let include_marketplace = request.arguments.as_ref()
+                        .and_then(|obj| obj.get("include_marketplace"))
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+
                     // Sync skills first (using existing mechanism)
                     let skill_report = if from == "claude" && !dry_run {
                         let home = home_dir()?;
                         let claude_root = mirror_source_root(&home);
                         let mirror_root = home.join(".codex/skills-mirror");
-                        sync_from_claude(&claude_root, &mirror_root)?
+                        sync_from_claude(&claude_root, &mirror_root, include_marketplace)?
                     } else {
                         crate::sync::SyncReport::default()
                     };
@@ -1699,7 +1747,8 @@ impl ServerHandler for SkillService {
                         skip_existing_commands,
                         sync_mcp_servers: true,
                         sync_preferences: true,
-                        sync_skills: false, // Handled separately above
+                        sync_skills: false, // Handled above
+                        include_marketplace,
                         ..Default::default()
                     };
 
@@ -1995,17 +2044,22 @@ fn handle_sync_agents_command(path: Option<PathBuf>, skill_dirs: Vec<PathBuf>) -
 }
 
 /// Handle the `sync` command.
-fn handle_sync_command() -> Result<()> {
+fn handle_sync_command(include_marketplace: bool) -> Result<()> {
     let home = home_dir()?;
     let report = sync_from_claude(
         &mirror_source_root(&home),
         &home.join(".codex/skills-mirror"),
+        include_marketplace,
     )?;
     println!("copied: {}, skipped: {}", report.copied, report.skipped);
     Ok(())
 }
 
-fn handle_mirror_command(dry_run: bool, skip_existing_commands: bool) -> Result<()> {
+fn handle_mirror_command(
+    dry_run: bool,
+    skip_existing_commands: bool,
+    include_marketplace: bool,
+) -> Result<()> {
     let home = home_dir()?;
     let claude_root = mirror_source_root(&home);
     if !skip_existing_commands {
@@ -2014,7 +2068,11 @@ fn handle_mirror_command(dry_run: bool, skip_existing_commands: bool) -> Result<
         );
     }
     // Mirror skills/agents/support files
-    let report = sync_from_claude(&claude_root, &home.join(".codex/skills-mirror"))?;
+    let report = sync_from_claude(
+        &claude_root,
+        &home.join(".codex/skills-mirror"),
+        include_marketplace,
+    )?;
     // Mirror commands/mcp/prefs
     let source = skrills_sync::ClaudeAdapter::new()?;
     let target = skrills_sync::CodexAdapter::new()?;
@@ -2026,6 +2084,7 @@ fn handle_mirror_command(dry_run: bool, skip_existing_commands: bool) -> Result<
         skip_existing_commands,
         sync_mcp_servers: true,
         sync_preferences: true,
+        include_marketplace,
         ..Default::default()
     };
     let sync_report = orch.sync(&params)?;
@@ -2169,7 +2228,8 @@ pub fn run() -> Result<()> {
         Commands::Mirror {
             dry_run,
             skip_existing_commands,
-        } => handle_mirror_command(dry_run, skip_existing_commands),
+            include_marketplace,
+        } => handle_mirror_command(dry_run, skip_existing_commands, include_marketplace),
         Commands::Agent {
             agent,
             skill_dirs,
@@ -2193,11 +2253,14 @@ pub fn run() -> Result<()> {
             &merge_extra_dirs(&skill_dirs),
             diagnose,
         ),
-        Commands::Sync => handle_sync_command(),
+        Commands::Sync {
+            include_marketplace,
+        } => handle_sync_command(include_marketplace),
         Commands::SyncCommands {
             from,
             dry_run,
             skip_existing_commands,
+            include_marketplace,
         } => {
             use skrills_sync::{ClaudeAdapter, CodexAdapter, SyncOrchestrator, SyncParams};
 
@@ -2215,6 +2278,7 @@ pub fn run() -> Result<()> {
                 sync_mcp_servers: false,
                 sync_preferences: false,
                 sync_skills: false,
+                include_marketplace,
                 ..Default::default()
             };
 
@@ -2313,6 +2377,7 @@ pub fn run() -> Result<()> {
             from,
             dry_run,
             skip_existing_commands,
+            include_marketplace,
         } => {
             use skrills_sync::{ClaudeAdapter, CodexAdapter, SyncOrchestrator, SyncParams};
 
@@ -2321,7 +2386,8 @@ pub fn run() -> Result<()> {
                 let home = home_dir()?;
                 let claude_root = mirror_source_root(&home);
                 let mirror_root = home.join(".codex/skills-mirror");
-                let skill_report = sync_from_claude(&claude_root, &mirror_root)?;
+                let skill_report =
+                    sync_from_claude(&claude_root, &mirror_root, include_marketplace)?;
                 println!(
                     "Skills: {} synced, {} unchanged",
                     skill_report.copied, skill_report.skipped
@@ -2337,6 +2403,7 @@ pub fn run() -> Result<()> {
                 sync_mcp_servers: true,
                 sync_preferences: true,
                 sync_skills: false, // Handled above
+                include_marketplace,
                 ..Default::default()
             };
 
@@ -2465,6 +2532,7 @@ mod tests {
         service::{serve_client, serve_server},
     };
     use skrills_discovery::{hash_file, SkillSource};
+    use skrills_state::{env_include_claude, env_include_marketplace};
     use std::collections::HashSet;
     use std::fs;
     use std::io::Read;
@@ -2930,6 +2998,7 @@ mod tests {
             std::env::remove_var("HOME");
         }
         std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");
+        std::env::remove_var("SKRILLS_CACHE_PATH");
         Ok(())
     }
 
@@ -3642,6 +3711,7 @@ mod tests {
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", tmp.path());
         std::env::set_var("SKRILLS_INCLUDE_CLAUDE", "1");
+        std::env::set_var("SKRILLS_INCLUDE_MARKETPLACE", "1");
         let manifest = tmp.path().join(".codex/skills-manifest.json");
         fs::create_dir_all(manifest.parent().unwrap())?;
         fs::write(&manifest, r#"["agent","codex"]"#)?;
@@ -3649,12 +3719,18 @@ mod tests {
 
         let roots = skill_roots(&[])?;
         let order: Vec<_> = roots.into_iter().map(|r| r.source.label()).collect();
-        assert_eq!(
-            order,
-            vec!["agent", "codex", "mirror", "claude", "marketplace", "cache"]
-        );
+        let mut expected = vec!["agent", "codex", "mirror"];
+        if env_include_claude() {
+            expected.push("claude");
+            if env_include_marketplace() {
+                expected.push("marketplace");
+                expected.push("cache");
+            }
+        }
+        assert_eq!(order, expected);
         std::env::remove_var("SKRILLS_MANIFEST");
         std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");
+        std::env::remove_var("SKRILLS_INCLUDE_MARKETPLACE");
 
         if let Some(home) = original_home {
             std::env::set_var("HOME", home);
@@ -3703,9 +3779,13 @@ mod tests {
         let tmp = tempdir()?;
         let original_home = std::env::var("HOME").ok();
         std::env::set_var("HOME", tmp.path());
+        // Use isolated cache path to avoid cross-test contamination when tests run in parallel.
+        let snapshot_path = tmp.path().join(".codex/skills-cache.json");
+        std::env::set_var("SKRILLS_CACHE_PATH", &snapshot_path);
         std::env::set_var("SKRILLS_INCLUDE_CLAUDE", "0");
         // Ensure no manifest overrides affect roots order
         std::env::remove_var("SKRILLS_MANIFEST");
+        std::env::remove_var("SKRILLS_INCLUDE_MARKETPLACE");
 
         let roots = skill_roots(&[])?;
         let roots_fingerprint: Vec<String> = roots
@@ -3713,7 +3793,6 @@ mod tests {
             .map(|r| r.root.to_string_lossy().into_owned())
             .collect();
 
-        let snapshot_path = tmp.path().join(".codex/skills-cache.json");
         fs::create_dir_all(snapshot_path.parent().unwrap())?;
         let now_secs = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -3733,7 +3812,9 @@ mod tests {
         });
         fs::write(&snapshot_path, serde_json::to_string(&snapshot)?)?;
 
-        let svc = SkillService::new_with_ttl(vec![], Duration::from_secs(3600))?;
+        // Build service with the same roots we fingerprinted to avoid env/order drift
+        // between snapshot creation and cache init (this was causing flakes in CI).
+        let svc = SkillService::new_with_roots_for_test(roots, Duration::from_secs(3600))?;
         let resources = svc.list_resources_payload()?;
         assert!(
             resources

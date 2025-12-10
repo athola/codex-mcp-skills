@@ -34,9 +34,18 @@ pub(crate) fn tui_flow(extra_dirs: &[PathBuf]) -> Result<()> {
                 .with_default(true)
                 .prompt()?;
 
+        let include_marketplace =
+            Confirm::new("Include marketplace content (uninstalled plugins)?")
+                .with_default(false)
+                .prompt()?;
+
         let home = home_dir()?;
         let mirror_root = home.join(".codex/skills-mirror");
-        let report = sync_from_claude(&mirror_source_root(&home), &mirror_root)?;
+        let report = sync_from_claude(
+            &mirror_source_root(&home),
+            &mirror_root,
+            include_marketplace,
+        )?;
 
         // Mirror commands/prefs/MCP
         let source = ClaudeAdapter::new()?;
@@ -48,6 +57,7 @@ pub(crate) fn tui_flow(extra_dirs: &[PathBuf]) -> Result<()> {
             skip_existing_commands,
             sync_mcp_servers: true,
             sync_preferences: true,
+            include_marketplace,
             ..Default::default()
         };
         let sync_report = orch.sync(&params)?;

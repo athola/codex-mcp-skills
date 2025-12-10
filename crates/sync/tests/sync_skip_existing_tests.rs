@@ -130,6 +130,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: false, // Disabled - should overwrite
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -173,6 +174,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true, // Enabled - should skip existing
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -238,6 +240,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true,
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -288,6 +291,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true,
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -343,6 +347,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true,
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -383,6 +388,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true,
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -428,6 +434,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true,
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         // Sync from Codex (new source) to Claude (new target)
@@ -479,6 +486,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true, // Should be ignored due to force
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);
@@ -526,6 +534,7 @@ mod skip_existing_commands_tests {
             skip_existing_commands: true,
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source_adapter, target_adapter);

@@ -37,7 +37,11 @@ pub(crate) fn mirror_source_root(home: &Path) -> PathBuf {
 ///
 /// Walks through the source directory and copies `SKILL.md` files to the destination,
 /// only copying if the file is new or has changed (based on hash comparison).
-pub(crate) fn sync_from_claude(claude_root: &Path, mirror_root: &Path) -> Result<SyncReport> {
+pub(crate) fn sync_from_claude(
+    claude_root: &Path,
+    mirror_root: &Path,
+    include_marketplace: bool,
+) -> Result<SyncReport> {
     let mut report = SyncReport::default();
     if !claude_root.exists() {
         return Ok(report);
@@ -55,6 +59,16 @@ pub(crate) fn sync_from_claude(claude_root: &Path, mirror_root: &Path) -> Result
         .into_iter()
         .filter_map(|e| e.ok())
     {
+        // Skip marketplace if requested
+        if !include_marketplace {
+            let path = entry.path();
+            if let Ok(rel) = path.strip_prefix(claude_root) {
+                if rel.starts_with("plugins/marketplaces") {
+                    continue;
+                }
+            }
+        }
+
         let is_skill = is_skill_file(&entry);
         let is_agent = entry.file_type().is_file()
             && entry.path().extension().is_some_and(|ext| ext == "md")
@@ -358,7 +372,7 @@ mod tests {
         let agent_src = agent_dir.join("helper.md");
         fs::write(&agent_src, "agent content")?;
 
-        let _report = sync_from_claude(&claude_root, &mirror_root)?;
+        let _report = sync_from_claude(&claude_root, &mirror_root, false)?;
 
         let agent_dest = mirror_root
             .parent()
@@ -378,14 +392,14 @@ mod tests {
         let skill_src = claude_root.join("nested/SKILL.md");
         fs::write(&skill_src, "v1")?;
 
-        let report1 = sync_from_claude(&claude_root, &mirror_root)?;
+        let report1 = sync_from_claude(&claude_root, &mirror_root, false)?;
         assert_eq!(report1.copied, 1);
         let dest = mirror_root.join("nested/SKILL.md");
         assert_eq!(fs::read_to_string(&dest)?, "v1");
 
         std::thread::sleep(Duration::from_millis(5));
         fs::write(&skill_src, "v2")?;
-        let report2 = sync_from_claude(&claude_root, &mirror_root)?;
+        let report2 = sync_from_claude(&claude_root, &mirror_root, false)?;
         assert_eq!(report2.copied, 1);
         assert_eq!(fs::read_to_string(&dest)?, "v2");
         Ok(())
@@ -403,10 +417,26 @@ mod tests {
         let skill_src = deep_dir.join("SKILL.md");
         fs::write(&skill_src, "deep")?;
 
-        let report = sync_from_claude(&claude_root, &mirror_root)?;
+        let report = sync_from_claude(&claude_root, &mirror_root, true)?;
         assert_eq!(report.copied, 1);
         let dest = mirror_root.join("plugins/marketplaces/a/plugins/b/skills/c/SKILL.md");
         assert_eq!(fs::read_to_string(&dest)?, "deep");
+        Ok(())
+    }
+
+    #[test]
+    fn sync_from_claude_ignores_marketplace_when_disabled() -> Result<()> {
+        let tmp = tempdir()?;
+        let claude_root = tmp.path().join("claude");
+        let mirror_root = tmp.path().join("mirror");
+
+        let deep_dir = claude_root.join("plugins/marketplaces/a/plugins/b/skills/c");
+        fs::create_dir_all(&deep_dir)?;
+        let skill_src = deep_dir.join("SKILL.md");
+        fs::write(&skill_src, "deep")?;
+
+        let report = sync_from_claude(&claude_root, &mirror_root, false)?;
+        assert_eq!(report.copied, 0);
         Ok(())
     }
 
@@ -422,7 +452,7 @@ mod tests {
         let skill_src = deep_dir.join("SKILL.md");
         fs::write(&skill_src, "cache-skill")?;
 
-        let report = sync_from_claude(&claude_root, &mirror_root)?;
+        let report = sync_from_claude(&claude_root, &mirror_root, false)?;
         assert_eq!(report.copied, 1);
         let dest = mirror_root.join("plugins/cache/x/y/z/skills/foo/SKILL.md");
         assert_eq!(fs::read_to_string(&dest)?, "cache-skill");
@@ -441,7 +471,7 @@ mod tests {
         fs::write(skill_dir.join("helper.py"), "print('hi')")?;
         fs::write(skill_dir.join("config.json"), "{\"ok\":true}")?;
 
-        let report = sync_from_claude(&claude_root, &mirror_root)?;
+        let report = sync_from_claude(&claude_root, &mirror_root, false)?;
         assert_eq!(report.copied, 1);
 
         let helper_dest = mirror_root.join("plugins/cache/tool/skills/demo/helper.py");

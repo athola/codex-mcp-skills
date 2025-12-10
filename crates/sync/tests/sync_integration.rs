@@ -131,6 +131,7 @@ mod sync_direction_tests {
             sync_mcp_servers: true,
             sync_preferences: true,
             skip_existing_commands: false,
+            include_marketplace: false,
         };
 
         // Perform sync
@@ -180,6 +181,7 @@ mod sync_direction_tests {
             sync_mcp_servers: true,
             sync_preferences: true,
             skip_existing_commands: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source, target);
@@ -230,11 +232,12 @@ mod sync_skip_existing_tests {
             skip_existing_commands: true, // Enable skip
             sync_mcp_servers: false,
             sync_preferences: false,
+            include_marketplace: false,
         };
 
         // Debug: Show what commands are being synced
-        let source_commands = source.read_commands().unwrap();
-        let target_commands = target.read_commands().unwrap();
+        let source_commands = source.read_commands(false).unwrap();
+        let target_commands = target.read_commands(false).unwrap();
         println!(
             "Source commands: {:?}",
             source_commands.iter().map(|c| &c.name).collect::<Vec<_>>()
@@ -295,6 +298,7 @@ mod sync_dry_run_tests {
             sync_mcp_servers: true,
             sync_preferences: true,
             skip_existing_commands: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source, target);
@@ -361,6 +365,7 @@ mod sync_force_overwrite_tests {
             sync_mcp_servers: false,
             sync_preferences: false,
             skip_existing_commands: false, // Should be ignored due to force
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source, target);
@@ -406,6 +411,7 @@ mod sync_error_handling_tests {
             sync_mcp_servers: true,
             sync_preferences: true,
             skip_existing_commands: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source, target);
@@ -447,6 +453,7 @@ mod sync_error_handling_tests {
             sync_mcp_servers: true,
             sync_preferences: true,
             skip_existing_commands: false,
+            include_marketplace: false,
         };
 
         let orchestrator = SyncOrchestrator::new(source, target);

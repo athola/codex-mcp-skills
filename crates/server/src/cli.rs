@@ -44,6 +44,9 @@ pub enum Commands {
         /// Do not overwrite existing prompts under ~/.codex/prompts (only add new ones).
         #[arg(long, default_value_t = false)]
         skip_existing_commands: bool,
+        /// Include marketplace content (uninstalled plugins).
+        #[arg(long, env = "SKRILLS_INCLUDE_MARKETPLACE", default_value_t = false)]
+        include_marketplace: bool,
     },
     /// Launches a discovered agent by name using the stored run template.
     Agent {
@@ -117,7 +120,11 @@ pub enum Commands {
         diagnose: bool,
     },
     /// Copies skills from `~/.claude` into `~/.codex/skills-mirror`.
-    Sync,
+    Sync {
+        /// Include marketplace content (uninstalled plugins).
+        #[arg(long, env = "SKRILLS_INCLUDE_MARKETPLACE", default_value_t = false)]
+        include_marketplace: bool,
+    },
     /// Syncs slash commands between Claude Code and Codex.
     SyncCommands {
         /// Source agent: "claude" or "codex".
@@ -129,6 +136,9 @@ pub enum Commands {
         /// Do not overwrite existing commands on target side.
         #[arg(long, default_value_t = false)]
         skip_existing_commands: bool,
+        /// Include marketplace content (uninstalled plugins).
+        #[arg(long, env = "SKRILLS_INCLUDE_MARKETPLACE", default_value_t = false)]
+        include_marketplace: bool,
     },
     /// Syncs MCP server configurations between Claude Code and Codex.
     SyncMcpServers {
@@ -159,6 +169,9 @@ pub enum Commands {
         /// Do not overwrite existing commands on target side.
         #[arg(long, default_value_t = false)]
         skip_existing_commands: bool,
+        /// Include marketplace content (uninstalled plugins).
+        #[arg(long, env = "SKRILLS_INCLUDE_MARKETPLACE", default_value_t = false)]
+        include_marketplace: bool,
     },
     /// Shows sync status and configuration differences.
     SyncStatus {

@@ -122,15 +122,20 @@ impl AgentAdapter for ClaudeAdapter {
         }
     }
 
-    fn read_commands(&self) -> Result<Vec<Command>> {
+    fn read_commands(&self, include_marketplace: bool) -> Result<Vec<Command>> {
         let mut commands = Vec::new();
         let mut seen = HashSet::new();
 
         // 1) Core ~/.claude/commands
         self.collect_commands_from_dir(&self.commands_dir(), &mut seen, &mut commands)?;
 
-        // 2) Marketplaces (only files inside a commands/ directory)
-        for base in ["plugins/marketplaces", "plugins/cache"] {
+        // 2) Marketplaces & Cache
+        let mut bases = vec!["plugins/cache"];
+        if include_marketplace {
+            bases.push("plugins/marketplaces");
+        }
+
+        for base in bases {
             let base_path = self.root.join(base);
             if !base_path.exists() {
                 continue;
@@ -388,7 +393,7 @@ mod tests {
     fn read_commands_empty_dir() {
         let tmp = tempdir().unwrap();
         let adapter = ClaudeAdapter::with_root(tmp.path().to_path_buf());
-        let commands = adapter.read_commands().unwrap();
+        let commands = adapter.read_commands(false).unwrap();
         assert!(commands.is_empty());
     }
 
@@ -400,7 +405,7 @@ mod tests {
         fs::write(cmd_dir.join("test.md"), "# Test Command").unwrap();
 
         let adapter = ClaudeAdapter::with_root(tmp.path().to_path_buf());
-        let commands = adapter.read_commands().unwrap();
+        let commands = adapter.read_commands(false).unwrap();
 
         assert_eq!(commands.len(), 1);
         assert_eq!(commands[0].name, "test");
@@ -408,7 +413,7 @@ mod tests {
     }
 
     #[test]
-    fn read_commands_includes_marketplace() {
+    fn read_commands_includes_marketplace_when_enabled() {
         let tmp = tempdir().unwrap();
         let root = tmp.path();
 
@@ -428,12 +433,20 @@ mod tests {
         fs::write(cache_dir.join("cached.md"), "# Cached").unwrap();
 
         let adapter = ClaudeAdapter::with_root(root.to_path_buf());
-        let cmds = adapter.read_commands().unwrap();
-        let names: HashSet<_> = cmds.iter().map(|c| c.name.as_str()).collect();
 
+        // With flag=true
+        let cmds = adapter.read_commands(true).unwrap();
+        let names: HashSet<_> = cmds.iter().map(|c| c.name.as_str()).collect();
         assert!(names.contains("core"));
         assert!(names.contains("market"));
         assert!(names.contains("cached"));
+
+        // With flag=false
+        let cmds_off = adapter.read_commands(false).unwrap();
+        let names_off: HashSet<_> = cmds_off.iter().map(|c| c.name.as_str()).collect();
+        assert!(names_off.contains("core"));
+        assert!(!names_off.contains("market"));
+        assert!(names_off.contains("cached"));
     }
 
     #[test]
@@ -450,7 +463,8 @@ mod tests {
         fs::write(mp_dir.join("shared.md"), "market").unwrap();
 
         let adapter = ClaudeAdapter::with_root(root.to_path_buf());
-        let cmds = adapter.read_commands().unwrap();
+        // Must enable marketplace to test collision
+        let cmds = adapter.read_commands(true).unwrap();
         let shared: Vec<_> = cmds.iter().filter(|c| c.name == "shared").collect();
         assert_eq!(shared.len(), 1);
         assert_eq!(shared[0].content, b"core".to_vec());

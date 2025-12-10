@@ -6,7 +6,10 @@ use skrills_discovery::{
     priority_labels_and_rank_map as disc_priority_labels_and_rank_map, AgentMeta, SkillMeta,
     SkillRoot, SkillSource,
 };
-use skrills_state::{env_include_claude, extra_dirs_from_env, home_dir, load_manifest_settings};
+use skrills_state::{
+    env_include_claude, env_include_marketplace, extra_dirs_from_env, home_dir,
+    load_manifest_settings,
+};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -83,7 +86,7 @@ pub fn skill_roots(extra_dirs: &[PathBuf]) -> Result<Vec<SkillRoot>> {
                 home.join(".claude/skills")
             }
             SkillSource::Marketplace => {
-                if !include_claude {
+                if !include_claude || !env_include_marketplace() {
                     continue;
                 }
                 home.join(".claude/plugins/marketplaces")
@@ -133,7 +136,7 @@ pub fn agent_roots(extra_dirs: &[PathBuf]) -> Result<Vec<SkillRoot>> {
                 home.join(".claude/agents")
             }
             SkillSource::Marketplace => {
-                if !include_claude {
+                if !include_claude || !env_include_marketplace() {
                     continue;
                 }
                 home.join(".claude/plugins/marketplaces")

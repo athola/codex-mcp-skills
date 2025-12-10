@@ -29,6 +29,13 @@ pub fn env_include_claude() -> bool {
         .unwrap_or(false)
 }
 
+/// Checks if `SKRILLS_INCLUDE_MARKETPLACE` environment variable is set to true.
+pub fn env_include_marketplace() -> bool {
+    std::env::var("SKRILLS_INCLUDE_MARKETPLACE")
+        .map(|s| s == "1" || s.eq_ignore_ascii_case("true"))
+        .unwrap_or(false)
+}
+
 /// Checks if `SKRILLS_MANIFEST_FIRST` environment variable is set to true.
 pub fn env_manifest_first() -> bool {
     std::env::var("SKRILLS_MANIFEST_FIRST")

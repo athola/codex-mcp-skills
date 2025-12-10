@@ -40,6 +40,9 @@ pub struct SyncParams {
     /// Sync preferences
     #[serde(default = "default_true")]
     pub sync_preferences: bool,
+    /// Include marketplace content (e.g. uninstalled plugins)
+    #[serde(default)]
+    pub include_marketplace: bool,
 }
 
 impl Default for SyncParams {
@@ -53,6 +56,7 @@ impl Default for SyncParams {
             skip_existing_commands: false,
             sync_mcp_servers: true,
             sync_preferences: true,
+            include_marketplace: false,
         }
     }
 }
@@ -89,7 +93,7 @@ impl<S: AgentAdapter, T: AgentAdapter> SyncOrchestrator<S, T> {
 
         // Sync commands
         if params.sync_commands {
-            let commands = self.source.read_commands()?;
+            let commands = self.source.read_commands(params.include_marketplace)?;
 
             if params.force {
                 // If force is true, we always write all commands, bypassing skip_existing_commands
@@ -102,7 +106,7 @@ impl<S: AgentAdapter, T: AgentAdapter> SyncOrchestrator<S, T> {
                 if params.skip_existing_commands {
                     let existing: HashSet<String> = self
                         .target
-                        .read_commands()?
+                        .read_commands(params.include_marketplace)?
                         .into_iter()
                         .map(|c| c.name)
                         .collect();
@@ -122,7 +126,7 @@ impl<S: AgentAdapter, T: AgentAdapter> SyncOrchestrator<S, T> {
             } else if params.skip_existing_commands {
                 let existing: HashSet<String> = self
                     .target
-                    .read_commands()?
+                    .read_commands(params.include_marketplace)?
                     .into_iter()
                     .map(|c| c.name)
                     .collect();

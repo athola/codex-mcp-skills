@@ -74,7 +74,7 @@ impl AgentAdapter for CodexAdapter {
         }
     }
 
-    fn read_commands(&self) -> Result<Vec<Command>> {
+    fn read_commands(&self, _include_marketplace: bool) -> Result<Vec<Command>> {
         let active_dir = self.prompts_dir();
         if !active_dir.exists() {
             return Ok(Vec::new());
@@ -347,7 +347,7 @@ mod tests {
     fn read_commands_empty_dir() {
         let tmp = tempdir().unwrap();
         let adapter = CodexAdapter::with_root(tmp.path().to_path_buf());
-        let commands = adapter.read_commands().unwrap();
+        let commands = adapter.read_commands(false).unwrap();
         assert!(commands.is_empty());
     }
 
@@ -359,7 +359,7 @@ mod tests {
         fs::write(cmd_dir.join("test.md"), "# Test Command").unwrap();
 
         let adapter = CodexAdapter::with_root(tmp.path().to_path_buf());
-        let commands = adapter.read_commands().unwrap();
+        let commands = adapter.read_commands(false).unwrap();
 
         assert_eq!(commands.len(), 1);
         assert_eq!(commands[0].name, "test");
@@ -400,7 +400,7 @@ mod tests {
         }];
 
         adapter.write_commands(&commands).unwrap();
-        let read_back = adapter.read_commands().unwrap();
+        let read_back = adapter.read_commands(false).unwrap();
 
         assert_eq!(read_back.len(), 1);
         assert_eq!(read_back[0].name, "test-cmd");

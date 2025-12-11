@@ -12,6 +12,8 @@ PATTERNS=(
   "!target/**"
   "!book/book/**"
   "!node_modules/**"
+  "!.npm-cache/**"
+  "!.npm/**"
   "!.cargo-home/**"
   "!.cargo-tmp/**"
   "!.cargo/**"

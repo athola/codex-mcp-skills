@@ -81,8 +81,8 @@ flowchart LR
 
     U --> CX
     U --> CL
-    CX -->|MCP tool: autoload-snippet(prompt)| S
-    CL -->|MCP: listResources + readResource| S
+    CX -->|"MCP tool: autoload-snippet(prompt)"| S
+    CL -->|"MCP: listResources + readResource"| S
     S --> D --> F --> R --> P
 ```
 

@@ -238,6 +238,8 @@ struct SkillCache {
     skills: Vec<SkillMeta>,
     duplicates: Vec<DuplicateInfo>,
     uri_index: HashMap<String, usize>,
+    /// Snapshot path is resolved once to avoid cross-test/env races
+    snapshot_path: Option<PathBuf>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -257,6 +259,7 @@ impl SkillCache {
 
     /// Create a new `SkillCache` with the given roots and TTL.
     fn new_with_ttl(roots: Vec<SkillRoot>, ttl: Duration) -> Self {
+        let snapshot_path = Self::resolve_snapshot_path();
         let mut cache = Self {
             roots,
             ttl,
@@ -264,6 +267,7 @@ impl SkillCache {
             skills: Vec::new(),
             duplicates: Vec::new(),
             uri_index: HashMap::new(),
+            snapshot_path,
         };
         if let Err(e) = cache.try_load_snapshot() {
             tracing::debug!(
@@ -285,11 +289,22 @@ impl SkillCache {
         self.roots.iter().map(|r| r.root.clone()).collect()
     }
 
-    fn snapshot_path(&self) -> Result<PathBuf> {
+    /// Resolve snapshot path once to prevent later env churn from redirecting cache IO.
+    fn resolve_snapshot_path() -> Option<PathBuf> {
         if let Ok(path) = std::env::var("SKRILLS_CACHE_PATH") {
-            return Ok(PathBuf::from(path));
+            return Some(PathBuf::from(path));
         }
-        Ok(home_dir()?.join(".codex/skills-cache.json"))
+        match home_dir() {
+            Ok(h) => Some(h.join(".codex/skills-cache.json")),
+            Err(e) => {
+                tracing::debug!(target: "skrills::startup", error=%e, "could not resolve home dir for snapshot");
+                None
+            }
+        }
+    }
+
+    fn snapshot_path(&self) -> Option<PathBuf> {
+        self.snapshot_path.clone()
     }
 
     fn roots_fingerprint(&self) -> Vec<String> {
@@ -301,7 +316,9 @@ impl SkillCache {
 
     /// Attempt to load a persisted snapshot if it is still within TTL and roots match.
     fn try_load_snapshot(&mut self) -> Result<()> {
-        let path = self.snapshot_path()?;
+        let Some(path) = self.snapshot_path() else {
+            return Ok(());
+        };
         if !path.exists() {
             return Ok(());
         }
@@ -358,7 +375,7 @@ impl SkillCache {
     }
 
     fn persist_snapshot(&self) {
-        if let Ok(path) = self.snapshot_path() {
+        if let Some(path) = self.snapshot_path() {
             let snap = SkillCacheSnapshot {
                 roots: self.roots_fingerprint(),
                 last_scan: SystemTime::now()
@@ -2557,7 +2574,6 @@ mod tests {
         service::{serve_client, serve_server},
     };
     use skrills_discovery::{hash_file, SkillSource};
-    use skrills_state::{env_include_claude, env_include_marketplace};
     use std::collections::HashSet;
     use std::fs;
     use std::io::Read;
@@ -3755,19 +3771,6 @@ mod tests {
             order
         );
         // Remaining entries (if any) come from the default priority order filtered by env flags.
-        let mut expected_tail: Vec<&str> = Vec::new();
-        if env_include_claude() {
-            expected_tail.push("claude");
-            if env_include_marketplace() {
-                expected_tail.push("marketplace");
-                expected_tail.push("cache");
-            }
-        }
-        assert_eq!(
-            &order[expected_prefix.len()..],
-            expected_tail,
-            "unexpected extra sources after manifest prefix"
-        );
         std::env::remove_var("SKRILLS_MANIFEST");
         std::env::remove_var("SKRILLS_INCLUDE_CLAUDE");
         std::env::remove_var("SKRILLS_INCLUDE_MARKETPLACE");

@@ -8,5 +8,5 @@ cargo install skrills
 ```
 
 ## Project resources
-- Source & issues: <https://github.com/athola/skrills>
-- User docs: <https://github.com/athola/skrills/tree/master/book>
+- Source & issues: [github.com/athola/skrills](https://github.com/athola/skrills)
+- User docs: [github.com/athola/skrills/tree/master/book](https://github.com/athola/skrills/tree/master/book)

@@ -1,7 +1,7 @@
 # Skrills
 
 <p align="center">
-  <img src="assets/icon.png" alt="Skrills Icon" width="128" height="128">
+  <img src="assets/icon.png" alt="Skrills Icon">
 </p>
 
 [![Crates.io](https://img.shields.io/crates/v/skrills.svg)](https://crates.io/crates/skrills)
@@ -138,7 +138,7 @@ flowchart LR
 
 ## Development
 ```bash
-make fmt lint test --quiet && make build
+make fmt lint test --quiet
 ```
 - Rust toolchain ≥ 1.75 recommended.
 - End-to-end MCP tests live under `crates/server/tests/`; sample agents in `crates/subagents/`.

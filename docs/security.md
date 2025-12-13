@@ -22,10 +22,10 @@ This document outlines key security considerations, features, and best practices
 - Recommendations for secure secrets storage.
 - Integration strategies with systems like Vault and AWS Secrets Manager.
 
-3. **mTLS & TLS Hardening** (see [Cipher Suites & Protocols in `gateway.md`](gateway.md#cipher-suites--protocols))
+3. **TLS Hardening**
 - TLS 1.3-only policy using Rustls defaults.
 - Option for an explicit TLS 1.3 allowlist for compliance.
-- Step-by-step guidance for mTLS setup between the gateway and Codex, and client and gateway.
+- Best practices for secure MCP server deployments.
 
 4. **MCP Dependency Hygiene** (see [MCP Dependency Strategy in `process-guidelines.md`](process-guidelines.md#mcp-dependency-strategy-rmcp--pastey))
 - Management of `rmcp` within the workspace using scoped feature sets.
@@ -67,9 +67,8 @@ chmod +x .git/hooks/pre-commit
 ### Production Deployment
 
 #### Mandatory Requirements
-- [ ] **Enable mutual TLS (mTLS)** for all gateway mode operations.
-- [ ] **Strictly enforce TLS 1.3**.
-- [ ] **Use robust API keys** (with 256+ bits of entropy).
+- [ ] **Strictly enforce TLS 1.3** for any network-exposed deployments.
+- [ ] **Use robust API keys** (with 256+ bits of entropy) if authentication is required.
 - [ ] **Secure file permissions** appropriately.
 - [ ] **Operate with a dedicated service account** (avoiding root privileges).
 
@@ -89,7 +88,7 @@ Type=notify
 User=skrills
 Group=skrills
 EnvironmentFile=/etc/skrills/secrets.env
-ExecStart=/usr/local/bin/skrills gateway --config /etc/skrills/config.toml
+ExecStart=/usr/local/bin/skrills serve
 Restart=on-failure
 
 # Security hardening
@@ -111,9 +110,8 @@ EOF
 ### Current Implementation
 
 #### Authentication & Authorization
-- **mTLS Client Authentication (gateway)**: The gateway performs X.509 certificate verification, including CA certificate validation and requiring client certificates for authentication.
-- **API Key Authentication (gateway)**: Authentication relies on bearer token validation, supporting multiple API keys for client identification.
-- **No Authentication Required (stdio mode)**: In local-only deployments using standard I/O (stdio) mode, authentication is not required, relying instead on process isolation and filesystem permissions.
+- **Process Isolation (stdio mode)**: In local deployments using standard I/O (stdio) mode, security relies on process isolation and filesystem permissions. The MCP server runs as the user's process.
+- **Future: mTLS Support**: For network-exposed deployments, mTLS client authentication with X.509 certificate verification is planned.
 
 #### Network Security
 - **TLS 1.3 Support**: The system supports TLS 1.3, using only modern cipher suites (e.g., AES-256-GCM, ChaCha20-Poly1305) and enforcing forward secrecy.
@@ -176,7 +174,7 @@ Communication between components occurs via standard I/O (stdio) or network, int
 
 ### Security Assumptions
 - **Trusted Components**: The user account, the `skrills` process, and local skill files are trusted.
-- **Untrusted Components**: Network traffic (particularly in gateway mode), MCP clients (especially those communicating over the network), and external skill content are untrusted or malicious.
+- **Untrusted Components**: Network traffic (if exposed), MCP clients (especially remote ones), and external skill content are treated as untrusted.
 
 ### Defense Strategy
 - Rigorous input validation is applied at all trust boundaries.
@@ -263,7 +261,7 @@ Communication between components occurs via standard I/O (stdio) or network, int
 
 ### Network Hardening
 - **Firewall Rules (iptables)**: Implement stringent firewall rules (e.g., using `iptables`) to allow only necessary ports and to rate-limit incoming connections.
-- **Network Segmentation**: Use network segmentation by placing the gateway in a Demilitarized Zone (DMZ), restricting access to skill directories, and requiring VPN for administrative access.
+- **Network Segmentation**: Use network segmentation to restrict access to skill directories and require VPN for administrative access when exposing the MCP server to a network.
 
 ---
 

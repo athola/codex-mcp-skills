@@ -290,3 +290,20 @@ Agents can be registered via:
 3. **Sync command**: `skrills sync-agents` to sync from external sources
 
 For detailed configuration options, see `docs/runtime-options.md` and `book/src/cli.md`.
+
+<!-- available_skills:start -->
+<!-- Skills discovered dynamically. Last sync: 1765582023 UTC. Total: 242 skills. -->
+<!-- Use CLI commands for current skill inventory:
+     skrills list              - List all discovered skills
+     skrills list-pinned       - List pinned skills
+     skrills doctor            - View discovery diagnostics
+-->
+<!-- available_skills:end -->
+
+<!-- available_agents:start -->
+<!-- Agents discovered dynamically. Total: 394 agents. -->
+<!-- Use CLI commands for current agent inventory:
+     skrills sync-agents       - Sync agents from external sources
+     skrills doctor            - View agent discovery diagnostics
+-->
+<!-- available_agents:end -->

@@ -129,7 +129,7 @@ flowchart LR
 
 ## Development
 ```bash
-make fmt lint test --quiet
+make format && make lint && make test --quiet && make build
 ```
 - Rust toolchain ≥ 1.75 recommended.
 - End-to-end MCP tests live under `crates/server/tests/`; sample agents in `crates/subagents/`.

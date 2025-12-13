@@ -1,0 +1,19 @@
+[package]
+name = "skrills_sync"
+version = "0.1.0"
+edition.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sha2.workspace = true
+walkdir.workspace = true
+dirs.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+mockall = "0.12.1"
+tokio = { version = "1", features = ["full"] }
+

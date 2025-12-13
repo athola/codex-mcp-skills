@@ -12,6 +12,7 @@
 #   SKRILLS_SKIP_PATH_MESSAGE  set to 1 to silence PATH reminder
 #   SKRILLS_NO_HOOK   set to 1 to skip hook/MCP registration
 #   SKRILLS_UNIVERSAL set to 1 to also sync ~/.agent/skills
+#   SKRILLS_MIRROR_SOURCE  source directory for mirroring skills (default: ~/.claude)
 # Flags:
 #   --local  Build from the current checkout with cargo and install that binary
 set -eu
@@ -21,8 +22,6 @@ set -eu
 # --- helpers ---------------------------------------------------------------
 fail() { echo "install error: $*" >&2; exit 1; }
 need_cmd() { command -v "$1" >/dev/null 2>&1 || fail "missing required command: $1"; }
-
-CONFIG_TOML="$HOME/.codex/config.toml"
 
 clean_legacy_codex_config()
 {
@@ -184,7 +183,9 @@ BUILD_FROM_SOURCE()
   export CARGO_HOME="$tmpdir/cargo-home"
   export CARGO_TARGET_DIR="$tmpdir/target"
   # Install into a temp root to avoid polluting user cargo/bin, then copy.
-  cargo install --git "https://github.com/${repo}.git" $tag_arg --bin "skrills" --root "$tmpdir/cargo-root" --locked --force
+  # Be explicit about features so subagents ship on by default even if the
+  # workspace default changes in the future.
+  cargo install --git "https://github.com/${repo}.git" $tag_arg --bin "skrills" --features "subagents" --root "$tmpdir/cargo-root" --locked --force
   built_bin="$tmpdir/cargo-root/bin/skrills"
   [ -x "$built_bin" ] || fail "cargo install did not produce skrills"
   mkdir -p "$bin_dir"
@@ -203,9 +204,23 @@ install_hook_and_mcp()
     echo "Warning: binary not found at $bin_dir/$bin_name; skipping hook." >&2
     return
   fi
+
+  # Determine base directory based on client if not explicitly set
+  local base_dir="${SKRILLS_BASE_DIR:-}"
+  if [ -z "$base_dir" ]; then
+    if [ "${SKRILLS_CLIENT}" = "claude" ]; then
+      base_dir="$HOME/.claude"
+    else
+      base_dir="$HOME/.codex"
+    fi
+  fi
+
   BIN_PATH="$bin_dir/$bin_name" SKRILLS_UNIVERSAL="${SKRILLS_UNIVERSAL:-0}" \
+    SKRILLS_CLIENT="${SKRILLS_CLIENT}" SKRILLS_BASE_DIR="$base_dir" \
+    SKRILLS_MIRROR_SOURCE="${SKRILLS_MIRROR_SOURCE:-}" \
     "$PWD/scripts/install-skrills.sh"
 }
+
 
 ensure_path_hint()
 {
@@ -218,20 +233,28 @@ ensure_path_hint()
 usage()
 {
   cat <<'USAGE'
-Install skrills and wire it into Codex.
+Install skrills and wire it into Codex/Claude.
+Default behavior:
+- Codex: MCP-first (registers skrills MCP server in ~/.codex/config.toml and updates AGENTS.md).
+- Claude: hook-first (writes `~/.claude/hooks/prompt.on_user_prompt_submit` and registers MCP server).
 
 Options:
   --local          Build from the current checkout with cargo and install that binary
+  --install-path PATH  Override install directory (sets SKRILLS_BIN_DIR)
+  --client codex|claude  Target client for hook/MCP paths (default: codex)
+  --base-dir PATH   Override client base dir (default: ~/.codex or ~/.claude per client)
   -h, --help       Show this help
 
 Environment:
-  SKRILLS_BIN_DIR   install directory (default: $HOME/.codex/bin)
+  SKRILLS_BIN_DIR   install directory (default: $HOME/.codex/bin for codex, $HOME/.claude/bin for claude)
   SKRILLS_BIN_NAME  binary name (default: skrills)
   SKRILLS_TARGET    optional cargo --target triple for builds
   SKRILLS_GH_REPO   owner/repo for release download (default: athola/skrills)
   SKRILLS_VERSION   release tag (no leading v) if pinning a specific version
   SKRILLS_NO_HOOK   set to 1 to skip hook/MCP registration
   SKRILLS_UNIVERSAL set to 1 to also sync ~/.agent/skills
+  SKRILLS_MIRROR_SOURCE  source directory for mirroring skills (default: $HOME/.claude)
+                         automatically skipped if same as install location to prevent redundancy
   SKRILLS_SKIP_PATH_MESSAGE set to 1 to silence PATH hint
 USAGE
 }
@@ -239,8 +262,33 @@ USAGE
 parse_args()
 {
   LOCAL_BUILD=0
+  SKRILLS_CLIENT="codex"
   while [ $# -gt 0 ]; do
     case "$1" in
+      --install-path)
+        shift
+        [ $# -gt 0 ] || fail "--install-path requires a path"
+        SKRILLS_BIN_DIR="$1"
+        ;;
+      --install-path=*)
+        SKRILLS_BIN_DIR="${1#*=}"
+        ;;
+      --client)
+        shift
+        [ $# -gt 0 ] || fail "--client requires codex or claude"
+        SKRILLS_CLIENT="$1"
+        ;;
+      --client=*)
+        SKRILLS_CLIENT="${1#*=}"
+        ;;
+      --base-dir)
+        shift
+        [ $# -gt 0 ] || fail "--base-dir requires a path"
+        SKRILLS_BASE_DIR="$1"
+        ;;
+      --base-dir=*)
+        SKRILLS_BASE_DIR="${1#*=}"
+        ;;
       --local) LOCAL_BUILD=1 ;;
       -h|--help) usage; exit 0 ;;
       *) fail "unknown option: $1" ;;
@@ -275,8 +323,70 @@ BUILD_LOCAL()
 
 # --- main ------------------------------------------------------------------
 parse_args "$@"
+
+# Auto-detect client if not explicitly set via env/flag
+if [ -z "${SKRILLS_CLIENT:-}" ]; then
+  SKRILLS_CLIENT="auto"
+fi
+
+detect_client_from_base() {
+  local base_hint="$1"
+  shopt -s nocasematch 2>/dev/null || true
+  case "$base_hint" in
+    *".claude"*|*"/claude"*|*"claude"*) echo "claude"; return ;; 
+    *".codex"*|*"/codex"*|*"codex"*) echo "codex"; return ;;
+  esac
+  echo "" # unknown
+}
+
+probe_signature_files() {
+  local base="$1"
+  # Claude markers
+  if [ -d "$base/hooks" ] && ls "$base/hooks" 2>/dev/null | grep -qi "prompt.on_user_prompt_submit"; then
+    echo "claude"; return
+  fi
+  if [ -f "$base/config.toml" ] && grep -qi "claude" "$base/config.toml"; then
+    echo "claude"; return
+  fi
+  if [ -f "$base/mcp_servers.json" ] && grep -qi "claude" "$base/mcp_servers.json"; then
+    echo "claude"; return
+  fi
+  # Codex markers
+  if [ -d "$base/hooks/codex" ]; then
+    echo "codex"; return
+  fi
+  if [ -f "$base/config.toml" ] && grep -qi "codex" "$base/config.toml"; then
+    echo "codex"; return
+  fi
+  if [ -f "$base/mcp_servers.json" ] && grep -qi "codex" "$base/mcp_servers.json"; then
+    echo "codex"; return
+  fi
+  echo "" # unknown
+}
+
+if [ "$SKRILLS_CLIENT" = "auto" ]; then
+  base_hint="${SKRILLS_BASE_DIR:-${SKRILLS_BIN_DIR:-$HOME/.codex}}"
+  candidate=$(detect_client_from_base "$base_hint")
+  if [ -z "$candidate" ]; then
+    candidate=$(probe_signature_files "$base_hint")
+  fi
+  if [ -z "$candidate" ]; then
+    SKRILLS_CLIENT="codex" # safe default: MCP-first
+  else
+    SKRILLS_CLIENT="$candidate"
+  fi
+fi
+
 bin_name="$(BIN_NAME)"
-bin_dir="${SKRILLS_BIN_DIR:-$HOME/.codex/bin}"
+
+# Set default bin_dir and config path based on client
+if [ "$SKRILLS_CLIENT" = "claude" ]; then
+  bin_dir="${SKRILLS_BIN_DIR:-$HOME/.claude/bin}"
+  CONFIG_TOML="$HOME/.claude/config.toml"
+else
+  bin_dir="${SKRILLS_BIN_DIR:-$HOME/.codex/bin}"
+  CONFIG_TOML="$HOME/.codex/config.toml"
+fi
 
 clean_legacy_codex_config
 
@@ -296,4 +406,28 @@ else
 fi
 
 ensure_path_hint "$bin_dir"
+
+# Also copy to ~/.cargo/bin for consistency with cargo install
+cargo_bin_dir="$HOME/.cargo/bin"
+if [ "$bin_dir" != "$cargo_bin_dir" ] && [ -d "$cargo_bin_dir" ]; then
+  if cp "$bin_dir/$bin_name" "$cargo_bin_dir/$bin_name" 2>/dev/null; then
+    chmod +x "$cargo_bin_dir/$bin_name"
+    echo "Also installed $bin_name to $cargo_bin_dir"
+  fi
+fi
+
 install_hook_and_mcp
+
+# Optionally mirror Claude assets into Codex on install.
+if [ "${SKRILLS_NO_MIRROR:-0}" != 1 ]; then
+  if [ "${SKRILLS_CLIENT}" = "codex" ]; then
+    if [ -d "$HOME/.claude" ]; then
+      echo "Mirroring Claude skills/agents/commands into Codex..."
+      if ! "$bin_dir/$bin_name" mirror >/dev/null 2>&1; then
+        echo "Warning: skrills mirror failed; you can rerun manually with 'skrills mirror' once ~/.claude is available." >&2
+      fi
+    else
+      echo "Skip mirror: ~/.claude not found. Run 'skrills mirror' after Claude is set up." >&2
+    fi
+  fi
+fi

@@ -1,52 +1,37 @@
 # Frequently Asked Questions
 
 ### Why did the installer URL with `/main/` fail?
-Use the branch-agnostic path in the installer URL. For example: `https://raw.githubusercontent.com/${SKRILLS_GH_REPO:-athola/skrills}/HEAD/scripts/install.sh` (or `install.ps1` for Windows). This approach ensures the URL resolves correctly regardless of the repository's default branch.
+The installer URL with `/main/` can fail if the repository's default branch is not named `main`. To avoid this issue, we use the branch-agnostic `/HEAD/` path in the installer URL: `https://raw.githubusercontent.com/${SKRILLS_GH_REPO:-athola/skrills}/HEAD/scripts/install.sh`. This special path automatically resolves to the latest commit on the default branch, ensuring the URL always works.
 
-### Which release asset should be downloaded manually?
-Select the archive whose filename includes your specific target triple. For instance, a Linux system might use `skrills-x86_64-unknown-linux-gnu.tar.gz`. Each archive contains the corresponding binary at its root.
+### Which release asset should I download manually?
+When downloading a release manually, you should select the archive that matches your system's architecture, also known as the 'target triple'. For example, if you are on a 64-bit Linux system, you would download `skrills-x86_64-unknown-linux-gnu.tar.gz`. After extracting the archive, you will find the `skrills` binary at the root.
 
-### Codex shows `MCP startup failed: missing field "type"`. How can this be resolved?
-Reinstall using the latest installer (`install.sh` or `install.ps1`). The updated installer now registers `skrills` with `type = "stdio"` in both `~/.codex/mcp_servers.json` and `~/.codex/config.toml`.
+### How do I resolve the `MCP startup failed: missing field "type"` error in Codex?
+This error indicates that the MCP server registration in your Codex configuration is missing the `type = "stdio"` field. To fix this, we recommend reinstalling with the latest installer (`install.sh` or `install.ps1`), which will handle the configuration for you.
 
-For manual correction:
-1.  Add `type: "stdio"` to the `skrills` entry within `mcp_servers.json`.
-2.  Add `type = "stdio"` under `[mcp_servers."skrills"]` in `config.toml`.
-3.  Restart Codex.
+If you prefer to fix it manually, you will need to:
+1. Add `type: "stdio"` to the `skrills` entry in `~/.codex/mcp_servers.json`.
+2. Add `type = "stdio"` under `[mcp_servers."skrills"]` in `~/.codex/config.toml`.
+3. Restart Codex.
 
-To verify the setup, run `skrills doctor` to confirm both files are present, readable, and correctly configured.
+You can run `skrills doctor` to verify that both files are correctly configured.
 
-If the error persists, Codex might reject a tool schema (often due to a missing top-level `type`). While our tools now include `type: "object"`, some third-party MCP servers may emit schemas that Codex rejects (e.g., using `integer` instead of `number`, or complex unions). Address this by proxying such servers through a schema normalizer:
+If the error persists, it's possible that another MCP server is emitting a schema that Codex rejects. To diagnose this, you can run `skrills serve --trace-wire` and examine the log for schema validation errors. A potential workaround is to proxy the problematic server through a schema normalizer like `codex-mcp-wrapper`.
 
-**Requirements**: Node.js 18+
+### Does this project replace my existing Claude skills?
+No, this project is designed to be non-destructive. The MCP server reads skills from their default locations and can be configured to mirror your existing Claude skills. However, it will not overwrite any of your files unless you explicitly run a synchronization command (`skrills sync`). This allows you to try out `skrills` without affecting your current setup.
 
-**Configuration**: Add a wrapped entry that runs the normalizer in front of the real server:
-```toml
-[mcp_servers.firecrawl]
-type = "stdio"
-command = "npx"
-args = ["-y", "codex-mcp-wrapper", "--", "npx", "-y", "@mendable/firecrawl-mcp"]
-```
-Substitute the `command` and `args` with those of the problematic MCP server. The `codex-mcp-wrapper` (available on GitHub at `kazuhideoki/codex-mcp-wrapper`) injects missing `type` fields, converts `integer` to `number`, flattens unions, and filters unsupported schemas before they reach Codex.
+### How is this project different from other skill management tools?
+The primary difference is that `skrills` treats skills as dynamic resources that can be managed and synchronized at runtime across different agents. This is achieved through its MCP server architecture. In contrast, other tools often rely on static skill bundles or provide only local synchronization. For a more detailed breakdown, please see our [Comparison to Similar Projects](../../book/src/comparison.md).
 
-To diagnose schema rejections from Codex, run `skrills serve --trace-wire` and examine the generated log.
+### How does autoloading remain token-efficient?
+The autoloading feature is designed for efficiency. Instead of preloading all skills or accessing the disk on every interaction, it first parses the intent of your prompt. Then, it injects only the relevant skills from a pre-cached index. This process minimizes both latency and token consumption, while still respecting any pinned skills or byte-budget constraints you have set.
 
-### Does this project replace existing Claude skills directories?
-No. The MCP server reads skills from default locations and can mirror Claude skills. It does not overwrite existing files unless explicit synchronization commands are executed.
+### How do I build the documentation locally?
+You can build the documentation locally using our `Makefile`. To build and open the mdBook, run `make book`. If you want to have live-reloading as you make changes, use `make book-serve`. To generate the Rust API documentation, run `make docs`.
 
-### How does this project differ from other skill management efforts?
-`skrills` offers an MCP server, a Codex hook, and cross-agent synchronization capabilities, enabling skills to function as runtime resources rather than static files. Other efforts typically involve static skill bundles, CI-driven documentation rendering, or local-only synchronization tools. For a more detailed comparison, refer to the [Comparison to Similar Projects](../../book/src/comparison.md) section in the project book.
-
-### How does autoloading stay efficient with tokens?
-Autoloading integrates with `UserPromptSubmit` to parse the prompt for intent and retrieve only matching skills from a cached index into the context window. This method prevents preloading every skill or re-reading the disk for each turn. Compared to alternatives that either load all skill names at startup, require explicit tool calls for each skill fetch, or ship static bundles within prompts, this approach maintains low latency and token usage while respecting pins, history, and byte budgets.
-
-### How are the project's documentation built locally?
-Use `make book` to build and open the `mdBook` documentation. For live-reloading during development, run `make book-serve` (accessible at `http://localhost:3000`). For Rust API documentation, use `make docs`.
-
-### Does the system function offline?
-Yes. Once the binary and necessary skills are present locally, the MCP server and CLI can operate without an active network connection.
+### Does the system work offline?
+Yes, the system is designed to work offline. As long as you have the `skrills` binary and your skills stored on your local machine, both the MCP server and the command-line interface will function without an internet connection.
 
 ### What are the security considerations?
-The server operates over standard I/O (stdio) and performs file reads adhering to the principle of least privilege. No secrets are bundled with the software, and users retain full control over which skill directories are exposed. Always review third-party skills before integrating them.
-
-For more in-depth answers and advanced scenarios, consult the project book's FAQ section.
+We've designed `skrills` with security in mind. The server communicates over standard I/O and operates with the least possible file access privileges. We do not bundle any secrets, and you have full control over which skill directories are exposed. As a general best practice, we always recommend that you review any third-party skills before using them.

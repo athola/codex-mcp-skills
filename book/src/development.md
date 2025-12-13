@@ -1,16 +1,16 @@
-# Development
+# Development Guide
 
-This page provides information for developers who want to contribute to the project.
+This guide provides development information for contributors.
 
 ## Toolchain
 
--   **Rust**: Install version 1.78 or newer via `rustup`.
--   **Formatting and Linting**: Use `cargo fmt` and `clippy`.
--   **Documentation**: This book uses `mdbook`. Install it by running `cargo install mdbook --locked`.
+- **Rust**: Ensure Rust 1.78+ is installed, preferably with `rustup`.
+- **Formatting and Linting**: Use `cargo fmt` for formatting and `clippy` for linting to maintain code quality.
+- **Documentation**: This project uses `mdbook` for documentation. Install it with `cargo install mdbook --locked`.
 
 ## Make Targets
 
-The `Makefile` provides several convenient targets:
+The project's [`Makefile`](Makefile) offers several convenient targets to streamline development workflows:
 
 ```bash
 # Code quality checks
@@ -33,9 +33,9 @@ make emit-autoload
 make demo-all
 
 # Documentation
-make docs         # Build rustdoc documentation
-make book         # Build and open the mdBook
-make book-serve   # Serve the mdBook with live-reloading on localhost:3000
+make docs         # Builds the rustdoc API documentation
+make book         # Compiles and automatically opens the mdBook
+make book-serve   # Serves the mdBook with live-reloading capabilities, typically accessible at localhost:3000
 
 # Cleaning up
 make clean
@@ -44,25 +44,23 @@ make clean-demo
 
 ## Demo Sandbox
 
-The `make demo-all` target provides a sandboxed environment for testing the CLI. It builds a release binary, prepares a temporary home directory with a demo skill, and runs a series of commands (`list`, `pin`, `unpin`, `auto-pin`, `history`, `sync-agents`, `sync`, and `emit-autoload`) to validate the end-to-end behavior of the CLI without affecting your real home directory.
+The `make demo-all` target creates a sandboxed environment for CLI testing. It builds a release binary, sets up a temporary home directory with a demo skill, and runs commands to validate end-to-end behavior without affecting your actual home directory.
 
 ## Testing
 
-To run the full test suite, use the following command:
+To run all tests, use:
 
 ```bash
 cargo test --workspace --all-features
 ```
 
-This is also aliased to `make test` and is run as part of the continuous integration pipeline (`make ci`).
+This command is aliased by `make test` and is part of the Continuous Integration (CI) pipeline, managed by `make ci`.
 
-### Public API guardrails
+### Public API Guardrails
 
-The `skrills-server` crate is pre-1.0. Follow the SemVer guidance in
-[Public API & SemVer](semver.md) and run the public API check locally before
-submitting changes.
+The `skrills-server` crate is currently in its pre-1.0 development phase. Refer to the SemVer guidance in [Public API and SemVer Policy](semver.md) and perform local public API checks before submitting changes. This ensures the API evolution policy is followed.
 
 ### Coverage
 
-- Local: `cargo llvm-cov --workspace --html` for an HTML report, or `cargo llvm-cov --workspace --lcov --output-path lcov.info` for CI export.
-- CI: `.github/workflows/coverage.yml` runs the same command and uploads to Codecov.
+- **Local Coverage**: For local analysis, generate an HTML report with `cargo llvm-cov --workspace --html`, or an LCOV report for CI export with `cargo llvm-cov --workspace --lcov --output-path lcov.info`.
+- **CI Coverage**: The [`coverage.yml`](.github/workflows/coverage.yml) workflow within our CI/CD pipeline runs the same coverage command and uploads the results to Codecov.

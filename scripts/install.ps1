@@ -10,6 +10,10 @@
 
 $ErrorActionPreference = "Stop"
 
+param(
+    [string]$InstallPath = ""
+)
+
 function Fail($msg) { Write-Error $msg; exit 1 }
 function Require($cmd) { if (-not (Get-Command $cmd -ErrorAction SilentlyContinue)) { Fail "Missing required command: $cmd" } }
 
@@ -74,7 +78,13 @@ function Download-And-Extract($url, $binDir, $binName) {
 }
 
 $binName = if ($env:SKRILLS_BIN_NAME) { $env:SKRILLS_BIN_NAME } else { "skrills.exe" }
-$binDir = if ($env:SKRILLS_BIN_DIR) { $env:SKRILLS_BIN_DIR } else { Join-Path $HOME ".codex/bin" }
+$binDir = if ($InstallPath) {
+    $InstallPath
+} elseif ($env:SKRILLS_BIN_DIR) {
+    $env:SKRILLS_BIN_DIR
+} else {
+    Join-Path $HOME ".codex/bin"
+}
 $assetUrl = Select-AssetUrl
 Download-And-Extract $assetUrl $binDir $binName
 Write-Output "Installed $binName to $binDir"

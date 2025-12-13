@@ -1,0 +1,306 @@
+name: Integration Tests
+
+on:
+  push:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/integration-tests.yml'
+  pull_request:
+    branches: [ main, master ]
+    paths:
+      - 'src/**'
+      - 'crates/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/integration-tests.yml'
+  schedule:
+    # Run integration tests daily at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+    inputs:
+      test_type:
+        description: 'Type of integration tests to run'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - server
+          - subagents
+          - sync
+
+permissions: 
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  RUSTFLAGS: "-D warnings"
+  RUSTDOCFLAGS: "-D warnings"
+
+jobs:
+  integration-test-filter:
+    runs-on: ubuntu-latest
+    outputs:
+      server: ${{ steps.filter.outputs.server }}
+      subagents: ${{ steps.filter.outputs.subagents }}
+      sync: ${{ steps.filter.outputs.sync }}
+      all: ${{ steps.filter.outputs.all }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            server:
+              - 'crates/server/**'
+            subagents:
+              - 'crates/subagents/**'
+            sync:
+              - 'crates/sync/**'
+            all:
+              - 'crates/**'
+              - '.github/workflows/integration-tests.yml'
+
+  prepare-integration-test-environment:
+    runs-on: ubuntu-latest
+    needs: integration-test-filter
+    if: needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.server == 'true' || needs.integration-test-filter.outputs.subagents == 'true' || needs.integration-test-filter.outputs.sync == 'true'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Cache cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-
+            ${{ runner.os }}-cargo-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-integration-test-target-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-integration-test-target-
+            ${{ runner.os }}-test-target-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            pkg-config \
+            libssl-dev \
+            build-essential \
+            openssl
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Build all workspace members
+        run: cargo build --workspace --all-targets
+
+  server-integration-tests:
+    runs-on: ubuntu-latest
+    needs: [integration-test-filter, prepare-integration-test-environment]
+    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.server == 'true' || github.event.inputs.test_type == 'server' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-
+            ${{ runner.os }}-cargo-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-integration-test-target-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-integration-test-target-
+            ${{ runner.os }}-test-target-
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Run server integration tests
+        run: |
+          echo "Running server integration tests..."
+          cargo test -p skrills-server --test subagents_end_to_end --test runtime_tools -- --nocapture
+          echo "Server integration tests completed!"
+
+  subagents-integration-tests:
+    runs-on: ubuntu-latest
+    needs: [integration-test-filter, prepare-integration-test-environment]
+    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.subagents == 'true' || github.event.inputs.test_type == 'subagents' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-
+            ${{ runner.os }}-cargo-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-integration-test-target-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-integration-test-target-
+            ${{ runner.os }}-test-target-
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Run subagents integration tests
+        run: |
+          echo "Running subagents integration tests..."
+          cargo test -p skrills-subagents --test subagent_service_integration -- --nocapture
+          echo "Subagents integration tests completed!"
+
+  sync-integration-tests:
+    runs-on: ubuntu-latest
+    needs: [integration-test-filter, prepare-integration-test-environment]
+    if: (needs.integration-test-filter.outputs.all == 'true' || needs.integration-test-filter.outputs.sync == 'true' || github.event.inputs.test_type == 'sync' || github.event.inputs.test_type == 'all') && (needs.prepare-integration-test-environment.result == 'success')
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Cache cargo registry and index
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+          key: ${{ runner.os }}-cargo-integration-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-integration-
+            ${{ runner.os }}-cargo-
+
+      - name: Cache target directory
+        uses: actions/cache@v4
+        with:
+          path: target
+          key: ${{ runner.os }}-integration-test-target-${{ hashFiles('**/Cargo.lock', '**/Cargo.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-integration-test-target-
+            ${{ runner.os }}-test-target-
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Run sync integration tests
+        run: |
+          echo "Running sync integration tests..."
+          cargo test -p skrills_sync --test sync_integration -- --nocapture
+          echo "Sync integration tests completed!"
+
+  integration-test-summary:
+    runs-on: ubuntu-latest
+    needs: [server-integration-tests, subagents-integration-tests, sync-integration-tests]
+    if: always()
+    steps:
+      - name: Create integration test summary
+        if: always()
+        run: |
+          echo "# Integration Test Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "## Test Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          # Server Tests
+          if [[ "${{ needs.server-integration-tests.result }}" == "success" ]]; then
+            echo "[PASSED] Server Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.server-integration-tests.result }}" == "failure" ]]; then
+            echo "[FAILED] Server Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[SKIPPED] Server Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Subagents Tests
+          if [[ "${{ needs.subagents-integration-tests.result }}" == "success" ]]; then
+            echo "[PASSED] Subagents Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.subagents-integration-tests.result }}" == "failure" ]]; then
+            echo "[FAILED] Subagents Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[SKIPPED] Subagents Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          # Sync Tests
+          if [[ "${{ needs.sync-integration-tests.result }}" == "success" ]]; then
+            echo "[PASSED] Sync Tests: PASSED" >> $GITHUB_STEP_SUMMARY
+          elif [[ "${{ needs.sync-integration-tests.result }}" == "failure" ]]; then
+            echo "[FAILED] Sync Tests: FAILED" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "[SKIPPED] Sync Tests: SKIPPED" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  integration-test-coverage:
+    runs-on: ubuntu-latest
+    needs: integration-test-filter
+    if: (needs.integration-test-filter.outputs.all == 'true' || github.event.inputs.test_type == 'all') && github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install cargo-llvm-cov
+        run: cargo install cargo-llvm-cov --locked
+
+      - name: Generate integration test coverage
+        run: |
+          # Run integration tests with coverage
+          cargo llvm-cov --lib --lcov --tests \
+            -p skrills-server \
+            -p skrills-subagents \
+            -p skrills_sync \
+            -- \
+            subagents_end_to_end \
+            runtime_tools \
+            subagent_service_integration \
+            sync_integration \
+            --nocapture
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: lcov.info
+          flags: integration-tests
+          name: integration-tests-coverage
+          fail_ci_if_error: false

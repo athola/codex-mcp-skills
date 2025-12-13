@@ -1,13 +1,13 @@
-# Overview
+# Project Overview
 
-`skrills` is an MCP server that makes local `SKILL.md` files available to AI agents. It can mirror skill repositories, filter skills based on the current prompt, and automatically provide context for platforms like Codex. It also keeps your `AGENTS.md` file up to date with a list of all available skills.
-...
+`skrills` is an MCP server that gives AI agents access to local `SKILL.md` definitions. Its capabilities include mirroring external skill repositories, dynamically filtering skills based on prompt relevance, and integrating these skills into Claude Code through custom hooks. It also keeps `AGENTS.md` current, launches mirrored agent specs via `skrills agent`, synchronizes commands/preferences between Codex and Claude, and provides a subagents runtime for multi-agent coordination.
+
 ## Capabilities
 
-`skrills` includes the following features:
-
--   **MCP Server**: A server that runs over standard I/O (stdio) and provides endpoints for managing skills and tools.
--   **Skill Discovery**: `skrills` finds skills in several default directories (Codex, Claude mirror, Claude, and Agent) and de-duplicates them based on a priority system.
--   **Autoloading**: It filters skills based on the content of your prompt, allows you to manually pin skills, and automatically pins skills that you use frequently. It also provides detailed diagnostics and truncates skills to fit within a byte budget.
--   **Synchronization Utilities**: It includes tools for mirroring Claude skills to Codex, exporting a list of skills to `AGENTS.md` in XML format, and a Terminal User Interface (TUI) for pinning skills.
--   **Installation**: You can install `skrills` using `curl` (for macOS/Linux), `PowerShell` (for Windows), or by building from source with `cargo`. A `Makefile` is also provided for running demonstrations.
+- **MCP Server**: Operates over standard I/O (stdio), providing endpoints for managing skills and tools.
+- **Skill Discovery**: Locates skills across multiple predefined directories (including Codex, Claude mirror, Claude, and Agent skill locations). It resolves potential conflicts by de-duplicating entries based on a clearly defined priority system.
+- **Autoloading**: Dynamically filters skills based on their relevance to the current prompt, supports manual pinning, and automatically prioritizes frequently used skills. This feature includes detailed diagnostics and content truncation to ensure that skills fit within predefined byte budgets.
+- **Subagents Runtime**: Provides MCP tools (`list_subagents`, `run_subagent`, `get_run_status`) for executing subagents with configurable backends (Claude-style or Codex-style). Supports async execution and secure transcript handling.
+- **Cross-Agent Sync**: Introduces sync orchestration with `SyncOrchestrator` and adapters for Claude/Codex, enabling cross-agent skill synchronization via `skrills sync import/export/report`.
+- **Synchronization Utilities**: Mirrors Claude assets (skills, agents, commands, preferences) into Codex via `mirror`, `sync`, and `sync-all`; exports skill listings to [`AGENTS.md`](AGENTS.md); provides a TUI for interactive pinning and mirroring. Command sync is byte-for-byte and respects `--skip-existing-commands` to avoid overwriting local files.
+- **Installation**: Has automated installers compatible with `curl` (for macOS/Linux) and PowerShell (for Windows). These installers configure Claude Code with hooks for automatic skill injection. Alternatively, `skrills` can be built directly from source using `cargo`. The [`Makefile`](Makefile) includes targets for various demonstration purposes.

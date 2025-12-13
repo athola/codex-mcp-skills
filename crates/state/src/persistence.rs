@@ -1,3 +1,8 @@
+//! Persists application state: pinned skills, auto-pinning flags, and autoload history.
+//!
+//! It provides functions to load, save, and manage persistent data structures
+//! for the `skrills` application.
+
 use crate::env::home_dir;
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -5,16 +10,19 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 
 /// Represents an entry in the history of autoloaded skills.
-///
-/// Stores a timestamp (`ts`) and a list of `skills` that were included in that entry.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HistoryEntry {
+    /// Timestamp of the history entry.
     pub ts: u64,
+    /// List of skills included in this entry.
     pub skills: Vec<String>,
 }
 
+/// Maximum number of history entries to retain.
 const HISTORY_LIMIT: usize = 50;
+/// Window size for auto-pinning history.
 const AUTO_PIN_WINDOW: usize = 5;
+/// Minimum number of hits within the window to auto-pin a skill.
 const AUTO_PIN_MIN_HITS: usize = 2;
 
 /// Returns the path to the file where manually pinned skills are persisted.
@@ -43,6 +51,20 @@ pub fn load_pinned() -> Result<HashSet<String>> {
     let data = std::fs::read_to_string(path)?;
     let list: Vec<String> = serde_json::from_str(&data)?;
     Ok(list.into_iter().collect())
+}
+
+/// Loads pinned skills, merging persisted pins with env-provided defaults.
+///
+/// Sets `SKRILLS_PINNED` to a comma-separated list of skill names to pin at startup
+/// without touching the persisted file.
+pub fn load_pinned_with_defaults() -> Result<HashSet<String>> {
+    let mut pins = load_pinned()?;
+    if let Ok(env) = std::env::var("SKRILLS_PINNED") {
+        for item in env.split(',').map(|s| s.trim()).filter(|s| !s.is_empty()) {
+            pins.insert(item.to_string());
+        }
+    }
+    Ok(pins)
 }
 
 /// Saves the current set of manually pinned skills to the persistence file.
@@ -84,7 +106,7 @@ pub fn save_auto_pin_flag(value: bool) -> Result<()> {
 
 /// Loads the history of autoloaded skills from the persistence file.
 ///
-/// Returns an empty `Vec` if the file does not exist. It also truncates the history
+/// Returns an empty `Vec` if the file does not exist. Truncates history
 /// to `HISTORY_LIMIT` if it exceeds this limit.
 pub fn load_history() -> Result<Vec<HistoryEntry>> {
     let path = history_file()?;
@@ -101,7 +123,7 @@ pub fn load_history() -> Result<Vec<HistoryEntry>> {
 
 /// Saves the current history of autoloaded skills to the persistence file.
 ///
-/// If the history exceeds `HISTORY_LIMIT`, it truncates the oldest entries.
+/// Truncates the history to `HISTORY_LIMIT` if it exceeds this limit.
 /// Creates parent directories if they do not exist.
 pub fn save_history(mut history: Vec<HistoryEntry>) -> Result<()> {
     if history.len() > HISTORY_LIMIT {
@@ -117,7 +139,7 @@ pub fn save_history(mut history: Vec<HistoryEntry>) -> Result<()> {
 
 /// Determines which skills to auto-pin based on recent usage history.
 ///
-/// It considers skills that appear at least `AUTO_PIN_MIN_HITS` times
+/// Considers skills that appear at least `AUTO_PIN_MIN_HITS` times
 /// within the last `AUTO_PIN_WINDOW` history entries.
 pub fn auto_pin_from_history(history: &[HistoryEntry]) -> HashSet<String> {
     let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
@@ -136,7 +158,7 @@ pub fn auto_pin_from_history(history: &[HistoryEntry]) -> HashSet<String> {
 
 /// Prints a formatted list of recent history entries to stdout.
 ///
-/// The number of entries is limited by the `limit` parameter.
+/// Limits the number of entries by the `limit` parameter.
 pub fn print_history(limit: usize) -> Result<()> {
     let history = load_history().unwrap_or_default();
     let mut entries: Vec<_> = history.into_iter().rev().take(limit).collect();

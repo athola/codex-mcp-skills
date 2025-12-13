@@ -1,18 +1,14 @@
-# Installation
-
-This guide provides instructions on how to install `skrills`.
+# Installation Guide
 
 ## crates.io (Recommended)
 
-Install the published binary directly from crates.io:
+To install the binary from `crates.io`, run the following command:
 
 ```bash
 cargo install skrills
 ```
 
 ## One-Liners (Release Artifacts)
-
-These commands install prebuilt release artifacts and register hooks automatically.
 
 ```bash
 # macOS / Linux
@@ -22,17 +18,37 @@ curl -LsSf https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install
 powershell -ExecutionPolicy Bypass -NoLogo -NoProfile -Command "Remove-Item alias:curl -ErrorAction SilentlyContinue; iwr https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.ps1 -UseBasicParsing | iex"
 ```
 
-You can customize the installation using these environment variables:
-- `SKRILLS_GH_REPO`: Overrides the default GitHub repository (`athola/skrills`). Useful if you are using a fork.
-- `SKRILLS_VERSION`: Specifies a particular version to install (e.g., `1.0.0`). Uses the latest stable version by default.
-- `SKRILLS_BIN_DIR`: Sets the installation directory for the binary (defaults to `~/.codex/bin`).
-- `SKRILLS_TARGET`: Forces installation for a specific target triple (e.g., `x86_64-unknown-linux-gnu`).
+You can customize the installation using environment variables or flags:
+- `SKRILLS_GH_REPO`: Overrides the default GitHub repository (`athola/skrills`).
+- `SKRILLS_VERSION`: Installs a specific version (use the tag without the leading `v` prefix).
+- `SKRILLS_BIN_DIR`: Sets the installation directory (defaulting to `~/.codex/bin`).
+- `SKRILLS_TARGET`: Sets the Rust target triple (e.g., `x86_64-unknown-linux-gnu`) for platform-specific builds.
+- `SKRILLS_CLIENT`: Forces the installer to configure for a client: `codex` or `claude`. If not set, the installer attempts auto-detection based on the presence of `~/.claude` or `~/.codex` directories.
+- `SKRILLS_BASE_DIR`: Overrides the client configuration root directory.
+- `SKRILLS_NO_MIRROR`: When set to `1`, skips the post-install mirror step that copies Claude assets into Codex (Codex installs only).
+- `--install-path <PATH>`: Sets the installation directory for the binaries.
+- `--client <codex|claude>`: Forces the installer to target a client type: `codex` or `claude`.
+- `--base-dir <PATH>`: Overrides the root directory for client configuration files.
+- `--local`: Builds `skrills` from a local source checkout instead of downloading release artifacts.
 
-Additionally, the `--local` flag can be used to build and install from your current local checkout using `cargo`, instead of downloading a pre-built release.
+## Common Scenarios
+
+```bash
+# Codex Default (auto-detected from ~/.codex):
+curl -LsSf https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.sh | sh
+
+# Claude (auto-detected from ~/.claude):
+SKRILLS_BIN_DIR="$HOME/.claude/bin" \
+  curl -LsSf https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.sh | sh
+
+# Explicit Claude setup with custom base directory:
+SKRILLS_CLIENT=claude SKRILLS_BASE_DIR=/tmp/claude-demo \
+  curl -LsSf https://raw.githubusercontent.com/athola/skrills/HEAD/scripts/install.sh | sh
+```
 
 ## From Source
 
-To install directly from the source code, use `cargo`:
+To install from source (requires Rust toolchain), run:
 
 ```bash
 cargo install --path crates/cli --force
@@ -40,27 +56,26 @@ cargo install --path crates/cli --force
 
 ## Hook & MCP Registration
 
-The installer automatically sets up the necessary hooks and registers the MCP server:
+The installer configures client-specific hooks (where applicable) and registers the MCP server. On Codex installs it also mirrors Claude assets into Codex unless `SKRILLS_NO_MIRROR=1`. If `~/.claude` is missing, the installer skips mirroring and prints a reminder to run `skrills mirror` later once Claude assets exist. This process starts with:
 
 ```bash
 ./scripts/install-skrills.sh [--universal] [--universal-only]
 ```
 
--   **Hook**: The `prompt.on_user_prompt_submit` hook is written to `~/.codex/hooks/codex/`. This hook allows `skrills` to process prompts.
--   **MCP Server Registration**: The MCP server is registered in `~/.codex/mcp_servers.json`. The installer ensures `type = "stdio"` is correctly configured, as required by newer Codex MCP clients.
--   **Legacy cleanup**: Before wiring skrills, the installer removes any older `codex-mcp-skills` binaries and MCP entries to avoid duplicate server registrations.
--   `--universal`: This flag also mirrors skills into `~/.agent/skills`, making them available for other agents.
--   `--universal-only`: Performs only the mirroring step without installing the main binary or hooks.
+- **Hooks**: For Claude, the installer creates the [`~/.claude/hooks/prompt.on_user_prompt_submit`](~/.claude/hooks/prompt.on_user_prompt_submit) file. For Codex, hooks are not currently implemented.
+- **MCP Registration**: During the registration process, the installer updates both [`~/.codex/mcp_servers.json`](~/.codex/mcp_servers.json) and [`~/.codex/config.toml`](~/.codex/config.toml).
+- **Legacy Cleanup**: Removes obsolete `codex-mcp-skills` binaries and their associated configuration entries.
+- **Universal Skill Mirroring**: If enabled, this mirrors skills to the `~/.agent/skills` directory, making them accessible across various agent environments.
 
 ## Make Targets
 
-The `Makefile` provides additional targets for installation and development:
+For convenience during development, the `Makefile` provides several common targets:
 
 ```bash
-make build         # Perform a release build of the project.
-make serve-help    # Display help for the 'serve' command.
-make emit-autoload # Emit an autoload snippet.
-make demo-all      # Run a full CLI demonstration in a sandboxed environment.
-make book          # Build the mdBook documentation and open it in your default browser.
-make book-serve    # Start a live-reloading server for the mdBook documentation on localhost:3000.
+make build         # Release build
+make serve-help    # Help for 'serve'
+make emit-autoload # Emit autoload snippet
+make demo-all      # Full CLI demo
+make book          # Build mdBook
+make book-serve    # Live mdBook on localhost:3000
 ```

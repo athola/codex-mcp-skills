@@ -1,34 +1,35 @@
-//! Runtime override helpers exposed by `skrills-server`.
+//! Runtime override helpers for `skrills-server`.
 //!
-//! These helpers are part of the public surface area consumed by the CLI and
-//! MCP runtime tools (`runtime-status`, `set-runtime-options`). They are
-//! intentionally small and configuration-only. While the crate is pre-1.0,
-//! the types in this module follow a best-effort stability promise: new
-//! fields may be added, but existing fields and semantics will not be
-//! removed or changed without a CHANGELOG note. Consumers should feature-gate
-//! usage behind the crate version they build against and avoid relying on
-//! private internals.
+//! These are the public API for CLI and MCP runtime tools
+//! (`runtime-status`, `set-runtime-options`).
 //!
-//! When compiled with the optional `watch` feature, the surrounding crate also
-//! exposes filesystem watching; this module itself has no feature flags and is
-//! always available.
+//! This module always compiles. The optional `watch` feature in the parent
+//! crate enables filesystem watching.
 
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use std::fs;
 
-use once_cell::sync::Lazy;
-use skrills_state::{env_manifest_first, env_render_mode_log, runtime_overrides_path};
+use skrills_state::{
+    env_auto_pin, env_diag, env_include_claude, env_manifest_first, env_render_mode_log,
+    load_auto_pin_flag,
+};
+use std::sync::LazyLock;
 use std::sync::Mutex;
 
+/// Runtime overrides for skill rendering and behavior.
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
 pub struct RuntimeOverrides {
+    /// Override the manifest-first rendering behavior.
     pub manifest_first: Option<bool>,
+    /// Override logging of render mode decisions.
     pub render_mode_log: Option<bool>,
+    /// Override minimal manifest rendering.
     pub manifest_minimal: Option<bool>,
 }
 
 impl RuntimeOverrides {
+    /// Load runtime overrides from the configuration path.
     pub fn load() -> Result<Self> {
         if let Some(path) = runtime_overrides_path() {
             if let Ok(text) = fs::read_to_string(&path) {
@@ -40,6 +41,7 @@ impl RuntimeOverrides {
         Ok(RuntimeOverrides::default())
     }
 
+    /// Save the current runtime overrides to the configuration path.
     pub fn save(&self) -> Result<()> {
         if let Some(path) = runtime_overrides_path() {
             if let Some(parent) = path.parent() {
@@ -51,23 +53,44 @@ impl RuntimeOverrides {
         Ok(())
     }
 
+    /// Return the effective `manifest_first` setting (overrides and environment variables).
     pub fn manifest_first(&self) -> bool {
         self.manifest_first.unwrap_or_else(env_manifest_first)
     }
 
+    /// Return the effective `render_mode_log` setting (overrides and environment variables).
     pub fn render_mode_log(&self) -> bool {
         self.render_mode_log.unwrap_or_else(env_render_mode_log)
     }
 
+    /// Return the effective `manifest_minimal` setting (overrides and environment variables).
     pub fn manifest_minimal(&self) -> bool {
         self.manifest_minimal
             .unwrap_or_else(skrills_state::env_manifest_minimal)
     }
 }
 
-static RUNTIME_CACHE: Lazy<Mutex<Option<RuntimeOverrides>>> = Lazy::new(|| Mutex::new(None));
+/// Gets the default value for the auto-pin flag.
+///
+/// Reads the persisted toggle or uses the environment default.
+pub fn env_auto_pin_default() -> bool {
+    env_auto_pin(load_auto_pin_flag().unwrap_or(false))
+}
 
-/// Load overrides once per process; subsequent calls reuse cached value.
+/// Checks if autoload responses should emit diagnostics by default.
+pub fn env_diag_default() -> bool {
+    env_diag()
+}
+
+/// Checks if `~/.claude` skills are included by default.
+pub fn env_include_claude_default() -> bool {
+    env_include_claude()
+}
+
+static RUNTIME_CACHE: LazyLock<Mutex<Option<RuntimeOverrides>>> =
+    LazyLock::new(|| Mutex::new(None));
+
+/// Loads overrides once per process; subsequent calls use the cached value.
 pub fn runtime_overrides_cached() -> RuntimeOverrides {
     if let Ok(mut guard) = RUNTIME_CACHE.lock() {
         if let Some(val) = guard.as_ref() {
@@ -81,8 +104,11 @@ pub fn runtime_overrides_cached() -> RuntimeOverrides {
     RuntimeOverrides::default()
 }
 
+/// Reset the runtime cache for testing purposes.
 pub fn reset_runtime_cache_for_tests() {
     if let Ok(mut guard) = RUNTIME_CACHE.lock() {
         *guard = None;
     }
 }
+
+pub use skrills_state::runtime_overrides_path;

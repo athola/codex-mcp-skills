@@ -1,21 +1,27 @@
-# Release Artifact Naming and Structure
+# Release Artifacts
 
-This document details the naming conventions and internal structure for release artifacts. Adhering to these guidelines allows installation scripts to correctly identify and extract the appropriate assets for each target platform.
+This document specifies the naming conventions and internal structure for `skrills` release artifacts. Following these guidelines is crucial to allow installation scripts to find and extract the correct assets for each target platform.
 
-Install scripts select a release asset whose filename contains the target triple. Therefore, archives should be published following this pattern:
+## Naming Convention
 
-```
-skrills-<target>.tar.gz
-```
+Release archives must follow this naming pattern:
+`skrills-<target>.<extension>`
 
-Where `<target>` is one of the supported target triples:
-- `x86_64-unknown-linux-gnu`
+- `<target>` is a supported target triple (e.g., `x86_64-unknown-linux-gnu`), indicating the specific platform.
+- `<extension>` will be `.tar.gz` for Unix-like operating systems and `.zip` for Windows environments.
+
+### Supported Targets
+- `x88_64-unknown-linux-gnu`
 - `aarch64-unknown-linux-gnu`
 - `x86_64-apple-darwin`
 - `aarch64-apple-darwin`
 - `x86_64-pc-windows-msvc`
 - `aarch64-pc-windows-msvc`
 
-Inside each archive, the binary must be placed in the archive root and named `skrills` (or `skrills.exe` for Windows builds).
+## Archive Structure
 
-The default release repository is `athola/skrills`. This can be overridden by setting the `SKRILLS_GH_REPO` environment variable if necessary.
+The executable binary must be at the root level of the archive and named `skrills` (or `skrills.exe` for Windows systems).
+
+## Repository
+
+The default repository for releases is `athola/skrills`. This default can be overridden by setting the `SKRILLS_GH_REPO` environment variable.

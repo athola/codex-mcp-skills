@@ -4,6 +4,7 @@
 
 use super::*;
 use std::env;
+use std::fs;
 use std::sync::Mutex;
 use tempfile::TempDir;
 
@@ -281,6 +282,456 @@ mod bdd_scenarios {
 
         // Then: The config should enable universal sync
         assert!(config.universal);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod is_setup_detection_tests {
+    use super::*;
+
+    #[test]
+    fn test_is_setup_claude_with_mcp_json() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Create .claude directory
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(&claude_dir)?;
+
+        // Create .mcp.json with skrills entry
+        let mcp_path = claude_dir.join(".mcp.json");
+        fs::write(
+            &mcp_path,
+            r#"{"mcpServers": {"skrills": {"command": "skrills"}}}"#,
+        )?;
+
+        // Should detect setup
+        assert!(is_setup(Client::Claude)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_setup_claude_with_hook() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Create .claude directory
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(claude_dir.join("hooks"))?;
+
+        // Create hook file with skrills content
+        let hook_path = claude_dir.join("hooks/prompt.on_user_prompt_submit");
+        fs::write(&hook_path, "#!/bin/bash\nskrills emit-autoload")?;
+
+        // Should detect setup
+        assert!(is_setup(Client::Claude)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_setup_claude_no_setup() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Create .claude directory but no setup files
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(&claude_dir)?;
+
+        // Should not detect setup
+        assert!(!is_setup(Client::Claude)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_setup_codex_with_agents_md() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Create .codex directory
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create AGENTS.md with skrills marker
+        let agents_path = codex_dir.join("AGENTS.md");
+        fs::write(
+            &agents_path,
+            "<!-- skrills-integration-start -->test<!-- skrills-integration-end -->",
+        )?;
+
+        // Should detect setup
+        assert!(is_setup(Client::Codex)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_setup_codex_with_config_toml() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Create .codex directory
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create config.toml with skrills MCP server
+        let config_path = codex_dir.join("config.toml");
+        fs::write(&config_path, "[mcp_servers.skrills]\ncommand = \"skrills\"")?;
+
+        // Should detect setup
+        assert!(is_setup(Client::Codex)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_setup_codex_no_setup() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Create .codex directory but no setup files
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Should not detect setup
+        assert!(!is_setup(Client::Codex)?);
+        Ok(())
+    }
+
+    #[test]
+    fn test_is_first_run_partial_setup() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        // Set up Claude only
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(&claude_dir)?;
+        let mcp_path = claude_dir.join(".mcp.json");
+        fs::write(&mcp_path, r#"{"mcpServers": {"skrills": {}}}"#)?;
+
+        // Should not be first run (Claude is set up)
+        assert!(!is_first_run()?);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod codex_agents_md_tests {
+    use super::*;
+
+    #[test]
+    fn test_install_codex_agents_md_new_file() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Install to new AGENTS.md
+        install_codex_agents_md(&codex_dir)?;
+
+        let agents_path = codex_dir.join("AGENTS.md");
+        assert!(agents_path.exists());
+
+        let content = fs::read_to_string(&agents_path)?;
+        assert!(content.contains("<!-- skrills-integration-start -->"));
+        assert!(content.contains("autoload-snippet"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_install_codex_agents_md_existing_file() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create existing AGENTS.md
+        let agents_path = codex_dir.join("AGENTS.md");
+        fs::write(
+            &agents_path,
+            "# Existing documentation\n\nSome content here.",
+        )?;
+
+        // Install skrills content
+        install_codex_agents_md(&codex_dir)?;
+
+        let content = fs::read_to_string(&agents_path)?;
+        assert!(content.contains("Existing documentation"));
+        assert!(content.contains("<!-- skrills-integration-start -->"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_install_codex_agents_md_already_present() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create AGENTS.md with skrills already present
+        let agents_path = codex_dir.join("AGENTS.md");
+        fs::write(
+            &agents_path,
+            "<!-- skrills-integration-start -->Already here<!-- skrills-integration-end -->",
+        )?;
+
+        // Should not duplicate content
+        install_codex_agents_md(&codex_dir)?;
+
+        let content = fs::read_to_string(&agents_path)?;
+        let count = content
+            .matches("<!-- skrills-integration-start -->")
+            .count();
+        assert_eq!(count, 1);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod register_claude_mcp_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_register_claude_mcp_creates_new_file() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(&claude_dir)?;
+
+        let skrills_bin = temp.path().join("skrills");
+
+        // Register MCP (creates new .mcp.json)
+        register_claude_mcp(&claude_dir, &skrills_bin)?;
+
+        let mcp_path = claude_dir.join(".mcp.json");
+        assert!(mcp_path.exists());
+
+        let content = fs::read_to_string(&mcp_path)?;
+        assert!(content.contains("skrills"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_register_claude_mcp_updates_existing() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(&claude_dir)?;
+
+        // Create existing .mcp.json
+        let mcp_path = claude_dir.join(".mcp.json");
+        fs::write(
+            &mcp_path,
+            r#"{"mcpServers": {"other": {"command": "other"}}}"#,
+        )?;
+
+        let skrills_bin = temp.path().join("skrills");
+
+        // Update existing MCP config
+        register_claude_mcp(&claude_dir, &skrills_bin)?;
+
+        let content = fs::read_to_string(&mcp_path)?;
+        assert!(content.contains("skrills"));
+        assert!(content.contains("other"));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod register_codex_mcp_tests {
+    use super::*;
+
+    #[test]
+    fn test_register_codex_mcp_new_file() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        let skrills_bin = temp.path().join("skrills");
+
+        // Register MCP (creates new config.toml)
+        register_codex_mcp(&codex_dir, &skrills_bin)?;
+
+        let config_path = codex_dir.join("config.toml");
+        assert!(config_path.exists());
+
+        let content = fs::read_to_string(&config_path)?;
+        assert!(content.contains("[mcp_servers.skrills]"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_register_codex_mcp_already_registered() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create existing config with skrills already registered
+        let config_path = codex_dir.join("config.toml");
+        fs::write(
+            &config_path,
+            "[mcp_servers.skrills]\ncommand = \"old-path\"",
+        )?;
+
+        let skrills_bin = temp.path().join("skrills");
+
+        // Should not duplicate
+        register_codex_mcp(&codex_dir, &skrills_bin)?;
+
+        let content = fs::read_to_string(&config_path)?;
+        let count = content.matches("[mcp_servers.skrills]").count();
+        assert_eq!(count, 1);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod uninstall_tests {
+    use super::*;
+    use std::fs;
+
+    #[test]
+    fn test_uninstall_claude_removes_hook() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(claude_dir.join("hooks"))?;
+
+        // Create hook file
+        let hook_path = claude_dir.join("hooks/prompt.on_user_prompt_submit");
+        fs::write(&hook_path, "#!/bin/bash\necho test")?;
+
+        // Uninstall should remove hook
+        uninstall_claude()?;
+
+        assert!(!hook_path.exists());
+        Ok(())
+    }
+
+    #[test]
+    fn test_uninstall_claude_removes_mcp() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let claude_dir = temp.path().join(".claude");
+        fs::create_dir_all(&claude_dir)?;
+
+        // Create .mcp.json with skrills
+        let mcp_path = claude_dir.join(".mcp.json");
+        fs::write(
+            &mcp_path,
+            r#"{"mcpServers": {"skrills": {"command": "skrills"}, "other": {}}}"#,
+        )?;
+
+        // Uninstall should remove skrills entry
+        uninstall_claude()?;
+
+        let content = fs::read_to_string(&mcp_path)?;
+        assert!(!content.contains("skrills"));
+        assert!(content.contains("other"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_uninstall_codex_removes_agents_md_section() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create AGENTS.md with skrills section
+        let agents_path = codex_dir.join("AGENTS.md");
+        fs::write(
+            &agents_path,
+            "# Start\n<!-- skrills-integration-start -->\nContent\n<!-- skrills-integration-end -->\n# End",
+        )?;
+
+        // Uninstall should remove skrills section
+        uninstall_codex()?;
+
+        let content = fs::read_to_string(&agents_path)?;
+        assert!(!content.contains("skrills-integration"));
+        assert!(content.contains("# Start"));
+        assert!(content.contains("# End"));
+        Ok(())
+    }
+
+    #[test]
+    fn test_uninstall_codex_removes_config_toml_section() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let codex_dir = temp.path().join(".codex");
+        fs::create_dir_all(&codex_dir)?;
+
+        // Create config.toml with skrills section (without the comment)
+        let config_path = codex_dir.join("config.toml");
+        fs::write(
+            &config_path,
+            "[mcp_servers.skrills]\ncommand = \"skrills\"\n\n[other]",
+        )?;
+
+        // Uninstall should remove skrills section
+        uninstall_codex()?;
+
+        let content = fs::read_to_string(&config_path)?;
+        assert!(!content.contains("skrills"));
+        assert!(content.contains("[other]"));
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod sync_universal_tests {
+    use super::*;
+
+    #[test]
+    fn test_sync_universal_no_source() -> Result<()> {
+        let _guard = env_guard();
+        let temp = create_test_home()?;
+        set_test_home(&temp);
+
+        let config = SetupConfig {
+            clients: vec![Client::Claude],
+            bin_dir: temp.path().join("bin"),
+            reinstall: false,
+            uninstall: false,
+            add: false,
+            yes: true,
+            universal: true,
+            mirror_source: Some(temp.path().join("nonexistent")),
+        };
+
+        // Should handle missing source gracefully
+        sync_universal(&config)?;
         Ok(())
     }
 }

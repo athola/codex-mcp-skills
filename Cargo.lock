@@ -2113,6 +2113,7 @@ name = "skrills"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "scopeguard",
  "skrills-server",
  "tempfile",
 ]

@@ -319,3 +319,262 @@ impl BackendAdapter for ClaudeAdapter {
         Ok(runs.into_iter().map(|r| r.status).collect())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_claude_adapter_new() {
+        let adapter = ClaudeAdapter::new("claude-3-haiku-20240307".to_string());
+        assert_eq!(adapter.config.model, "claude-3-haiku-20240307");
+        assert_eq!(adapter.config.base_url.as_str(), DEFAULT_BASE);
+        assert_eq!(
+            adapter.config.timeout,
+            Duration::from_millis(DEFAULT_TIMEOUT_MS)
+        );
+    }
+
+    #[test]
+    fn test_claude_adapter_with_config() {
+        let config = AdapterConfig {
+            api_key: "test-key".to_string(),
+            base_url: reqwest::Url::parse("https://test.com").unwrap(),
+            model: "test-model".to_string(),
+            timeout: Duration::from_secs(30),
+        };
+
+        let adapter = ClaudeAdapter::with_config(config.clone());
+        assert_eq!(adapter.config.api_key, "test-key");
+        assert_eq!(adapter.config.model, "test-model");
+        assert_eq!(adapter.config.base_url.as_str(), "https://test.com/");
+    }
+
+    #[test]
+    fn test_claude_adapter_backend() {
+        let adapter = ClaudeAdapter::new("claude-3-haiku-20240307".to_string());
+        assert_eq!(adapter.backend(), BackendKind::Claude);
+    }
+
+    #[test]
+    fn test_claude_capabilities() {
+        let adapter = ClaudeAdapter::new("claude-3-haiku-20240307".to_string());
+        let capabilities = adapter.capabilities();
+
+        assert!(capabilities.supports_schema);
+        assert!(capabilities.supports_async);
+        assert!(!capabilities.supports_tracing);
+        assert!(!capabilities.supports_secure_transcript);
+    }
+
+    #[tokio::test]
+    async fn test_claude_list_templates() {
+        let adapter = ClaudeAdapter::new("claude-3-haiku-20240307".to_string());
+        let templates = adapter.list_templates().await.unwrap();
+
+        assert_eq!(templates.len(), 1);
+        assert_eq!(templates[0].id, "default");
+        assert_eq!(templates[0].name, "Claude Code Subagent");
+        assert_eq!(templates[0].backend, BackendKind::Claude);
+        assert!(templates[0].capabilities.contains(&"tools".to_string()));
+        assert!(templates[0]
+            .capabilities
+            .contains(&"structured_outputs".to_string()));
+    }
+
+    #[test]
+    fn test_build_anthropic_body_default() {
+        let request = RunRequest {
+            backend: BackendKind::Claude,
+            prompt: "Hello, world!".to_string(),
+            template_id: Some("test".to_string()),
+            output_schema: None,
+            tracing: false,
+            async_mode: false,
+        };
+
+        let body = build_anthropic_body("claude-3-haiku-20240307", &request);
+
+        assert_eq!(body.model, "claude-3-haiku-20240307");
+        assert_eq!(body.messages.len(), 1);
+        assert_eq!(body.messages[0].role, "user");
+        assert_eq!(body.messages[0].content, "Hello, world!");
+        assert_eq!(body.max_tokens, 1024);
+        assert_eq!(body.stream, Some(false));
+        assert!(body.metadata.is_none());
+        assert!(body.response_format.is_none());
+    }
+
+    #[test]
+    fn test_build_anthropic_body_with_schema() {
+        let mut schema = serde_json::Map::new();
+        schema.insert(
+            "type".to_string(),
+            serde_json::Value::String("object".to_string()),
+        );
+
+        let request = RunRequest {
+            backend: BackendKind::Claude,
+            prompt: "Generate JSON".to_string(),
+            template_id: Some("test".to_string()),
+            output_schema: Some(serde_json::Value::Object(schema)),
+            tracing: true,
+            async_mode: true,
+        };
+
+        let body = build_anthropic_body("claude-3-haiku-20240307", &request);
+
+        assert_eq!(body.stream, Some(true));
+        assert!(body.metadata.is_some());
+        assert!(body.response_format.is_some());
+
+        let response_format = body.response_format.unwrap();
+        assert_eq!(response_format["type"], "json_schema");
+        assert_eq!(response_format["json_schema"]["name"], "subagent_output");
+        assert_eq!(response_format["json_schema"]["schema"]["type"], "object");
+
+        let metadata = body.metadata.unwrap();
+        assert_eq!(metadata["trace"], true);
+    }
+
+    #[test]
+    fn test_extract_anthropic_text_from_content_array() {
+        let value = json!({
+            "content": [
+                {"type": "text", "text": "Hello, "},
+                {"type": "text", "text": "world!"}
+            ]
+        });
+
+        let text = extract_anthropic_text(&value).unwrap();
+        assert_eq!(text, "Hello, world!");
+    }
+
+    #[test]
+    fn test_extract_anthropic_text_from_string_content() {
+        let value = json!({
+            "content": "Simple text response"
+        });
+
+        let text = extract_anthropic_text(&value).unwrap();
+        assert_eq!(text, "Simple text response");
+    }
+
+    #[test]
+    fn test_extract_anthropic_text_no_content() {
+        let value = json!({
+            "error": "Something went wrong"
+        });
+
+        assert!(extract_anthropic_text(&value).is_none());
+    }
+
+    #[test]
+    fn test_extract_anthropic_text_empty_content_array() {
+        let value = json!({
+            "content": []
+        });
+
+        assert!(extract_anthropic_text(&value).is_none());
+    }
+
+    #[test]
+    fn test_extract_anthropic_text_content_array_without_text() {
+        let value = json!({
+            "content": [
+                {"type": "image", "source": "data:image/png;base64,..."}
+            ]
+        });
+
+        assert!(extract_anthropic_text(&value).is_none());
+    }
+
+    #[test]
+    fn test_anthropic_message_serialization() {
+        let message = AnthropicMessage {
+            role: "user".to_string(),
+            content: "Hello, Claude!".to_string(),
+        };
+
+        let json = serde_json::to_string(&message).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["role"], "user");
+        assert_eq!(parsed["content"], "Hello, Claude!");
+    }
+
+    #[test]
+    fn test_anthropic_body_serialization() {
+        let body = AnthropicBody {
+            model: "claude-3-haiku-20240307".to_string(),
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: "Test".to_string(),
+            }],
+            max_tokens: 100,
+            stream: Some(true),
+            metadata: Some(json!({"trace": true})),
+            response_format: None,
+        };
+
+        let json = serde_json::to_string(&body).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert_eq!(parsed["model"], "claude-3-haiku-20240307");
+        assert_eq!(parsed["max_tokens"], 100);
+        assert_eq!(parsed["stream"], true);
+        assert_eq!(parsed["metadata"]["trace"], true);
+        assert!(parsed.get("response_format").is_none());
+    }
+
+    #[test]
+    fn test_anthropic_body_serialization_skips_none() {
+        let body = AnthropicBody {
+            model: "claude-3-haiku-20240307".to_string(),
+            messages: vec![AnthropicMessage {
+                role: "user".to_string(),
+                content: "Test".to_string(),
+            }],
+            max_tokens: 100,
+            stream: None,
+            metadata: None,
+            response_format: None,
+        };
+
+        let json = serde_json::to_string(&body).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+
+        assert!(parsed.get("stream").is_none());
+        assert!(parsed.get("metadata").is_none());
+        assert!(parsed.get("response_format").is_none());
+    }
+
+    // Integration-style tests that demonstrate usage patterns
+    #[tokio::test]
+    async fn test_claude_run_creates_record() {
+        // This test demonstrates the run flow without actually calling Claude API
+        let adapter = ClaudeAdapter::new("claude-3-haiku-20240307".to_string());
+
+        // Note: This test shows the intended usage pattern
+        // In practice, you'd need an implementation of RunStore
+        let _request = RunRequest {
+            backend: BackendKind::Claude,
+            prompt: "Test prompt".to_string(),
+            template_id: Some("test".to_string()),
+            output_schema: None,
+            tracing: false,
+            async_mode: false,
+        };
+
+        // The run method would:
+        // 1. Create a run record in the store
+        // 2. Update status to Running
+        // 3. Spawn a task to execute the run
+        // 4. Return the run ID
+
+        // Note: Actual execution requires a valid API key
+        assert!(
+            adapter.config.api_key.is_empty() || adapter.config.api_key == "skrills_claude_api_key"
+        );
+    }
+}

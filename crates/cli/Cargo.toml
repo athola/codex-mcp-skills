@@ -22,3 +22,4 @@ anyhow.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true
+scopeguard = "1.2"
